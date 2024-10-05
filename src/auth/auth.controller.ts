@@ -1,23 +1,40 @@
 import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
-import { HashPasswordPipe } from './pipes/CreateUserPipe';
+import { CreateUserPipe } from './pipes/CreateUserPipe';
 import { Response, Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { LoginAuthDto } from './dto/login-auth.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
   @Post('/create')
-  create(
-    @Body(HashPasswordPipe) createAuthDto: CreateAuthDto,
+  async create(
+    @Body(CreateUserPipe) createAuthDto: CreateAuthDto,
     @Res() res: Response,
   ) {
-    return this.authService.create(createAuthDto, res);
+    const result = await this.authService.create(createAuthDto, res);
+    return res.json(result);
+  }
+  @Get('/validate-refresh')
+  async validateRefreshToken(@Req() req: Request, @Res() res: Response) {
+    const result = await this.authService.validationRefreshToken(
+      req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')],
+    );
+    return res.json(result);
   }
 
-  @Get('/validate-refresh')
-  validateRefreshToken(@Req() req: Request) {
-    const { refreshToken } = req.cookies;
-    return this.authService.validationRefreshToken(refreshToken);
+  @Post('/logout')
+  async logout(@Res() res: Response) {
+    return await this.authService.logout(res);
+  }
+  @Post('/login')
+  async login(@Body() loginAuthDto: LoginAuthDto, @Res() res: Response) {
+    const result = await this.authService.login(loginAuthDto, res);
+    return res.json(result);
   }
 }

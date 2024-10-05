@@ -1,4 +1,4 @@
-import { Injectable, UseGuards } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { User } from './user.schema';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
@@ -10,15 +10,15 @@ export class UserService {
     return `This action returns all user`;
   }
 
-  findOne(id: string) {
-    return `This action returns a #${id} user`;
+  async findOneById(id: string) {
+    const user = await this.UserModel.findOne({ _id: id }).exec();
+
+    return user;
   }
 
-  update(id: number) {
-    return `This action updates a #${id} user`;
-  }
+  async findOneByEmail(email: string) {
+    const user = await this.UserModel.findOne({ email: email }).exec();
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+    return user;
   }
 }
