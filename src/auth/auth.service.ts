@@ -49,7 +49,7 @@ export class AuthService {
 
     const data = {
       access_token: this.generateAccessToken(user._id),
-      userData: responseUserData,
+      userData: { ...responseUserData, id: user._id },
     };
 
     return data;

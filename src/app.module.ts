@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { PostModule } from './post/post.module';
 import * as process from 'process';
 import * as Joi from 'joi';
 
@@ -21,6 +22,7 @@ const environment = process.env.NODE_ENV || 'development';
     AuthModule,
     UserModule,
     MongooseModule.forRoot(process.env.DB_URL),
+    PostModule,
   ],
 })
 export class AppModule {}

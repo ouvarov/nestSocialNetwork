@@ -10,9 +10,4 @@ export class UserController {
   findAll() {
     return this.userService.findAll();
   }
-
-  @Get('/getUser')
-  getUser(@Body() id: string) {
-    return this.userService.findOneById(id);
-  }
 }

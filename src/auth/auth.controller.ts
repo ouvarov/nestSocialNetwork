@@ -25,12 +25,15 @@ export class AuthController {
     const result = await this.authService.validationRefreshToken(
       req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')],
     );
+
     return res.json(result);
   }
 
   @Post('/logout')
   async logout(@Res() res: Response) {
-    return await this.authService.logout(res);
+    const result = await this.authService.logout(res);
+
+    return res.json(result);
   }
   @Post('/login')
   async login(@Body() loginAuthDto: LoginAuthDto, @Res() res: Response) {
