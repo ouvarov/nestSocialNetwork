@@ -1,8 +1,8 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class CreatePostDto {
   @IsString()
-  image: string;
+  imageUrl: string;
 
   @IsString()
   @IsNotEmpty()

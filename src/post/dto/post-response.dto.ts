@@ -8,7 +8,7 @@ export class PostResponseDto {
   ownerId: number;
 
   @Expose()
-  image: string;
+  imageUrl: string;
 
   @Expose()
   text: string;

@@ -9,10 +9,10 @@ export class Post {
   text: string;
 
   @Prop({ default: '' })
-  image: string;
+  imageUrl: string;
 
   @Prop({ default: [] })
-  likes: [];
+  likes: string[];
 }
 
 export const PostSchema = SchemaFactory.createForClass(Post);

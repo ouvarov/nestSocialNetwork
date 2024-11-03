@@ -1,29 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 
 import { Post } from './post.shema';
-import { PostEntity } from './entities/post.entity';
 import { plainToClass } from 'class-transformer';
 import { PostResponseDto } from './dto/post-response.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class PostService {
   @InjectModel(Post.name) private PostModel: Model<Post>;
+  @Inject(AuthService)
+  private readonly authService: AuthService;
   async create(
     createPostDto: CreatePostDto,
-  ): Promise<{ postData: PostEntity }> {
-    const createPost = new this.PostModel(createPostDto);
+    token: string,
+  ): Promise<{ postData: PostResponseDto }> {
+    const user = await this.authService.validationRefreshToken(token);
+    const createPost = new this.PostModel({
+      ...createPostDto,
+      ownerId: user.userData.id,
+    });
 
     const post = await createPost.save();
 
     const responsePostData = plainToClass(PostResponseDto, post.toObject(), {
       excludeExtraneousValues: true,
     });
-
-    console.log(responsePostData, post);
 
     const data = {
       postData: responsePostData,
@@ -35,11 +39,19 @@ export class PostService {
   async find(id: string): Promise<{ postsData: PostResponseDto[] }> {
     const findAllPosts = await this.PostModel.find({ ownerId: id }).exec();
 
-    const postsData = findAllPosts.map((post) =>
-      plainToClass(PostResponseDto, post.toObject(), {
-        excludeExtraneousValues: true,
-      }),
-    );
+    const postsData = findAllPosts.map((post) => {
+      const postObject = post.toObject();
+      return plainToClass(
+        PostResponseDto,
+        {
+          ...postObject,
+          _id: postObject._id.toString(),
+        },
+        {
+          excludeExtraneousValues: true,
+        },
+      );
+    });
 
     const data = {
       postsData: postsData,
@@ -48,11 +60,54 @@ export class PostService {
     return data;
   }
 
-  update(id: number, updatePostDto: UpdatePostDto) {
-    return `This action updates a #${id} post`;
+  async like(id: string, token: string) {
+    const user = await this.authService.validationRefreshToken(token);
+    const post = await this.PostModel.findOne({ _id: id }).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const userId: string = user.userData.id;
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const likeIndex = post.likes.indexOf(userId);
+
+    if (likeIndex > -1) {
+      post.likes.splice(likeIndex, 1);
+    } else {
+      post.likes.push(userId);
+    }
+
+    await post.save();
+
+    const postObject = post.toObject();
+
+    const postData = plainToClass(
+      PostResponseDto,
+      {
+        ...postObject,
+        _id: postObject._id.toString(),
+      },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
+
+    return postData;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} post`;
+  async remove(id: string, token: string): Promise<any> {
+    const user = await this.authService.validationRefreshToken(token);
+
+    const deletePost = await this.PostModel.deleteOne({
+      _id: id,
+      ownerId: user.userData.id,
+    }).exec();
+
+    return deletePost;
   }
 }

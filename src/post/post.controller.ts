@@ -3,44 +3,67 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   Res,
   UseGuards,
+  Req,
+  Put,
 } from '@nestjs/common';
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/auth.guard';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('post')
 @UseGuards(JwtAuthGuard)
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(
+    private readonly postService: PostService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('/create')
-  async create(@Body() createPostDto: CreatePostDto, @Res() res: Response) {
-    const result = await this.postService.create(createPostDto);
+  async create(
+    @Body() createPostDto: CreatePostDto,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
+    const token =
+      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+    const result = await this.postService.create(createPostDto, token);
 
     return res.json(result);
   }
 
-  @Post('/getPosts')
-  async find(@Body() data: { id: string }, @Res() res: Response) {
-    const result = await this.postService.find(data.id);
+  @Get('/getPosts/:id')
+  async find(@Param('id') id: string, @Res() res: Response) {
+    const result = await this.postService.find(id);
 
     return res.json(result);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-    return this.postService.update(+id, updatePostDto);
+  @Put('/like/:id')
+  async like(@Body() id: string, @Req() req: Request, @Res() res: Response) {
+    const token =
+      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+
+    const result = await this.postService.like(id, token);
+
+    return res.json(result);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.postService.remove(+id);
+  async remove(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const token =
+      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+    const result = await this.postService.remove(id, token);
+
+    return res.json(result);
   }
 }

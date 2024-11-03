@@ -6,6 +6,7 @@ import { UserModule } from './user/user.module';
 import { PostModule } from './post/post.module';
 import * as process from 'process';
 import * as Joi from 'joi';
+// import { TypeOrmModule } from '@nestjs/typeorm';
 
 const environment = process.env.NODE_ENV || 'development';
 @Module({
@@ -22,6 +23,16 @@ const environment = process.env.NODE_ENV || 'development';
     AuthModule,
     UserModule,
     MongooseModule.forRoot(process.env.DB_URL),
+    // TypeOrmModule.forRoot({
+    //   type: 'postgres',
+    //   host: 'localhost',
+    //   port: 5432,
+    //   username: process.env.POSTGRES_USER || 'user',
+    //   password: process.env.POSTGRES_PASSWORD || 'password',
+    //   database: process.env.POSTGRES_DB || 'mydb',
+    //   autoLoadEntities: true,
+    //   synchronize: true,
+    // }),
     PostModule,
   ],
 })

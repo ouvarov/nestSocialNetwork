@@ -12,16 +12,17 @@ import { UserService } from '../user/user.service';
 import { ConfigService } from '@nestjs/config';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import * as bcrypt from 'bcrypt';
+// import { Repository } from 'typeorm';
+// import { UserOrm } from '../user/entities/user.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private UserModel: Model<User>,
+    @InjectModel(User.name) private readonly userModel: Model<User>, // Correct usage for Mongoose models
     private readonly jwtService: JwtService,
-    @Inject(UserService)
     private readonly userService: UserService,
-    @Inject(ConfigService)
     private readonly configService: ConfigService,
+    // private userRepository: Repository<UserOrm>,
   ) {}
 
   private readonly refreshTokenSecret = this.configService.get<string>(
@@ -43,13 +44,17 @@ export class AuthService {
 
     const user = await this.userService.findOneById(userData.sub as string);
 
-    const responseUserData = plainToClass(UserResponseDto, user.toObject(), {
-      excludeExtraneousValues: true,
-    });
+    const responseUserData = plainToClass(
+      UserResponseDto,
+      { ...user.toObject(), _id: user.toObject()._id.toString() },
+      {
+        excludeExtraneousValues: true,
+      },
+    );
 
     const data = {
       access_token: this.generateAccessToken(user._id),
-      userData: { ...responseUserData, id: user._id },
+      userData: responseUserData,
     };
 
     return data;
@@ -59,7 +64,7 @@ export class AuthService {
     createUserDto: CreateAuthDto,
     res: Response,
   ): Promise<{ access_token: string; userData: UserResponseDto }> {
-    const createdUser = new this.UserModel(createUserDto);
+    const createdUser = new this.userModel(createUserDto);
 
     const user = await createdUser.save();
 

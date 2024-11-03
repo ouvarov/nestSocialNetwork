@@ -5,7 +5,7 @@ export class UserResponseDto {
   userName: string;
 
   @Expose({ name: '_id' })
-  id: number;
+  id: string;
 
   @Expose()
   imageUrl: string;

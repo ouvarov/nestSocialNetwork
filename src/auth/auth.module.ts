@@ -24,5 +24,6 @@ import { UserService } from '../user/user.service';
     }),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
+  exports: [JwtModule],
 })
 export class AuthModule {}

@@ -1,30 +1,31 @@
-import { IsArray, IsDate, IsEmail, IsString, IsUUID } from 'class-validator';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-export class UserEntity {
-  @IsEmail()
+@Entity('users')
+export class UserOrm {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
   email: string;
 
-  @IsString()
+  @Column()
   password: string;
 
-  @IsString()
+  @Column()
   userName: string;
 
-  @IsUUID()
-  _id: number;
-
-  @IsString()
+  @Column({ default: '' })
   imageUrl: string;
 
-  @IsArray()
-  following: [];
+  @Column('int', { array: true, default: [] })
+  following: number[];
 
-  @IsArray()
-  followers: [];
+  @Column('int', { array: true, default: [] })
+  followers: number[];
 
-  @IsString()
+  @Column({ default: '' })
   description: string;
 
-  @IsDate()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   created: Date;
 }
