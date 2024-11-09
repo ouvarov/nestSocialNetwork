@@ -1,9 +1,6 @@
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { CreateAuthDto } from './dto/create-auth.dto';
-import { InjectModel } from '@nestjs/mongoose';
-import { User } from '../user/user.schema';
-import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as jwt from 'jsonwebtoken';
 import { Response } from 'express';
@@ -12,17 +9,15 @@ import { UserService } from '../user/user.service';
 import { ConfigService } from '@nestjs/config';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import * as bcrypt from 'bcrypt';
-// import { Repository } from 'typeorm';
-// import { UserOrm } from '../user/entities/user.entity';
+import { AuthDatabaseService } from '../database/auth-database.module';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private readonly userModel: Model<User>, // Correct usage for Mongoose models
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly configService: ConfigService,
-    // private userRepository: Repository<UserOrm>,
+    private readonly authDatabaseService: AuthDatabaseService,
   ) {}
 
   private readonly refreshTokenSecret = this.configService.get<string>(
@@ -46,14 +41,14 @@ export class AuthService {
 
     const responseUserData = plainToClass(
       UserResponseDto,
-      { ...user.toObject(), _id: user.toObject()._id.toString() },
+      { ...user, id: user.id.toString() },
       {
         excludeExtraneousValues: true,
       },
     );
 
     const data = {
-      access_token: this.generateAccessToken(user._id),
+      access_token: this.generateAccessToken(user.id),
       userData: responseUserData,
     };
 
@@ -64,11 +59,15 @@ export class AuthService {
     createUserDto: CreateAuthDto,
     res: Response,
   ): Promise<{ access_token: string; userData: UserResponseDto }> {
-    const createdUser = new this.userModel(createUserDto);
+    const { email, password, userName } = createUserDto;
 
-    const user = await createdUser.save();
+    const user = await this.authDatabaseService.createUser({
+      email,
+      password,
+      userName,
+    });
 
-    const refreshToken = this.generateRefreshToken(user._id);
+    const refreshToken = this.generateRefreshToken(user.id);
 
     res.cookie(this.refreshTokenSecret, refreshToken, {
       httpOnly: true,
@@ -76,13 +75,13 @@ export class AuthService {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    const responseUserData = plainToClass(UserResponseDto, user.toObject(), {
+    const responseUserData = plainToClass(UserResponseDto, user, {
       excludeExtraneousValues: true,
     });
 
     const data = {
-      access_token: this.generateAccessToken(user._id),
-      userData: responseUserData,
+      access_token: this.generateAccessToken(user.id),
+      userData: { ...responseUserData },
     };
 
     return data;
@@ -101,13 +100,14 @@ export class AuthService {
     const { email, password } = loginAuthDto;
 
     const user = await this.userService.findOneByEmail(email);
+
     const isPasswordEquals = await bcrypt.compare(password, user.password);
 
     if (!user || !isPasswordEquals) {
       throw new HttpException('bad credentials', HttpStatus.BAD_REQUEST);
     }
 
-    const refreshToken = this.generateRefreshToken(user._id);
+    const refreshToken = this.generateRefreshToken(user.id);
 
     res.cookie(this.refreshTokenSecret, refreshToken, {
       httpOnly: true,
@@ -115,12 +115,12 @@ export class AuthService {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    const responseUserData = plainToClass(UserResponseDto, user.toObject(), {
+    const responseUserData = plainToClass(UserResponseDto, user, {
       excludeExtraneousValues: true,
     });
 
     const data = {
-      access_token: this.generateAccessToken(user._id),
+      access_token: this.generateAccessToken(user.id),
       userData: responseUserData,
     };
 

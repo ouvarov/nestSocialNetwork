@@ -1,25 +1,25 @@
 import { Exclude, Expose } from 'class-transformer';
 
 export class UserResponseDto {
-  @Expose()
+  @Expose({ name: 'user_name' })
   userName: string;
 
-  @Expose({ name: '_id' })
+  @Expose({ name: 'id' })
   id: string;
 
-  @Expose()
+  @Expose({ name: 'image_url' })
   imageUrl: string;
 
-  @Expose()
-  following: [];
+  @Expose({ name: 'following' })
+  following: string[];
 
-  @Expose()
-  followers: [];
+  @Expose({ name: 'followers' })
+  followers: string[];
 
-  @Expose()
+  @Expose({ name: 'description' })
   description: string;
 
-  @Expose()
+  @Expose({ name: 'created' })
   created: Date;
 
   @Exclude()

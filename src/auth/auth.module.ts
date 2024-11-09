@@ -4,13 +4,22 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User, UserSchema } from '../user/user.schema';
 import { UserService } from '../user/user.service';
+import { DatabaseService } from '../database/database.provider';
+import { UserModule } from '../user/user.module';
+import { AuthDatabaseService } from '../database/auth-database.module';
+import { UserDatabaseService } from '../database/user-database.module';
 
 @Module({
-  providers: [JwtStrategy, AuthService, UserService],
+  providers: [
+    JwtStrategy,
+    AuthService,
+    UserService,
+    DatabaseService,
+    AuthDatabaseService,
+    UserDatabaseService,
+  ],
   controllers: [AuthController],
   imports: [
     PassportModule,
@@ -22,7 +31,7 @@ import { UserService } from '../user/user.service';
         signOptions: { expiresIn: '15m' },
       }),
     }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    UserModule,
   ],
   exports: [JwtModule],
 })

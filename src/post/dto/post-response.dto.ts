@@ -1,13 +1,13 @@
 import { Expose } from 'class-transformer';
 
 export class PostResponseDto {
-  @Expose({ name: '_id' })
+  @Expose({ name: 'id' })
   id: number;
 
-  @Expose()
+  @Expose({ name: 'owner_id' })
   ownerId: number;
 
-  @Expose()
+  @Expose({ name: 'image_url' })
   imageUrl: string;
 
   @Expose()
@@ -16,6 +16,6 @@ export class PostResponseDto {
   @Expose()
   likes: [];
 
-  @Expose()
-  createdAt: Date;
+  @Expose({ name: 'created' })
+  created: Date;
 }

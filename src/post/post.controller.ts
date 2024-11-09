@@ -44,12 +44,18 @@ export class PostController {
     return res.json(result);
   }
 
-  @Put('/like/:id')
-  async like(@Body() id: string, @Req() req: Request, @Res() res: Response) {
+  @Put('/like')
+  async like(
+    @Body()
+    { postId }: { postId: string },
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     const token =
       await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
 
-    const result = await this.postService.like(id, token);
+    console.log(postId, 'postId');
+    const result = await this.postService.like(postId, token);
 
     return res.json(result);
   }
