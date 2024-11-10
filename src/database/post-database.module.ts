@@ -15,9 +15,9 @@ export class PostDatabaseService {
     text: string;
   }) {
     const query = `
-        INSERT INTO posts (owner_id, image_url, text, likes)
+        INSERT INTO Posts (owner_id, image_url, text, likes)
         VALUES ($1, $2, $3, $4)
-        RETURNING id, owner_id, image_url, text, likes, created;
+        RETURNING post_id, owner_id, image_url, text, likes, created;
     `;
 
     const values = [userId, imageUrl, text, []];
@@ -35,13 +35,13 @@ export class PostDatabaseService {
     userId: string;
   }) {
     const query = `
-        UPDATE posts
+        UPDATE Posts
         SET likes = CASE
             WHEN $1 = ANY(likes) THEN array_remove(likes, $1) 
             ELSE array_append(likes, $1) 
             END
-        WHERE id = $2
-            RETURNING id, likes;
+        WHERE post_id = $2
+            RETURNING post_id, likes;
     `;
 
     const values = [userId, postId];
@@ -53,9 +53,9 @@ export class PostDatabaseService {
 
   async deletePost({ postId, userId }: { postId: string; userId: string }) {
     const query = `
-        DELETE FROM posts
-        WHERE id = $1 AND owner_id = $2 
-            RETURNING id;  
+        DELETE FROM Posts
+        WHERE post_id = $1 AND owner_id = $2 
+            RETURNING post_id;  
     `;
 
     const values = [postId, userId];
@@ -71,7 +71,7 @@ export class PostDatabaseService {
 
   async allPosts(id: string) {
     const query = `
-      SELECT * FROM posts
+      SELECT * FROM Posts
       WHERE owner_id = $1;
     `;
 

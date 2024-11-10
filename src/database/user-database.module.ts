@@ -8,7 +8,7 @@ export class UserDatabaseService {
 
   async findByEmail(email: string): Promise<UserEntity> {
     const query = `
-        SELECT * FROM users
+        SELECT * FROM Users
         WHERE email = $1;
     `;
 
@@ -19,9 +19,11 @@ export class UserDatabaseService {
 
   async findById(id: string) {
     const query = `
-      SELECT * FROM users
-      WHERE id = $1;
+      SELECT * FROM Users
+      WHERE user_id = $1;
     `;
+
+    console.log(id, 'id');
 
     const result = await this.databaseService.query(query, [id]);
 

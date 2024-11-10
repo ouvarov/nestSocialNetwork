@@ -1,7 +1,7 @@
 import { Expose } from 'class-transformer';
 
 export class PostResponseDto {
-  @Expose({ name: 'id' })
+  @Expose({ name: 'post_id' })
   id: number;
 
   @Expose({ name: 'owner_id' })

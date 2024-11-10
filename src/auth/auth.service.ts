@@ -41,14 +41,14 @@ export class AuthService {
 
     const responseUserData = plainToClass(
       UserResponseDto,
-      { ...user, id: user.id.toString() },
+      { ...user, id: user.user_id.toString() },
       {
         excludeExtraneousValues: true,
       },
     );
 
     const data = {
-      access_token: this.generateAccessToken(user.id),
+      access_token: this.generateAccessToken(responseUserData.id),
       userData: responseUserData,
     };
 
@@ -67,7 +67,11 @@ export class AuthService {
       userName,
     });
 
-    const refreshToken = this.generateRefreshToken(user.id);
+    const responseUserData = plainToClass(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+
+    const refreshToken = this.generateRefreshToken(responseUserData.id);
 
     res.cookie(this.refreshTokenSecret, refreshToken, {
       httpOnly: true,
@@ -75,12 +79,8 @@ export class AuthService {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    const responseUserData = plainToClass(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
-
     const data = {
-      access_token: this.generateAccessToken(user.id),
+      access_token: this.generateAccessToken(responseUserData.id),
       userData: { ...responseUserData },
     };
 
@@ -107,7 +107,11 @@ export class AuthService {
       throw new HttpException('bad credentials', HttpStatus.BAD_REQUEST);
     }
 
-    const refreshToken = this.generateRefreshToken(user.id);
+    const responseUserData = plainToClass(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+
+    const refreshToken = this.generateRefreshToken(responseUserData.id);
 
     res.cookie(this.refreshTokenSecret, refreshToken, {
       httpOnly: true,
@@ -115,12 +119,8 @@ export class AuthService {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    const responseUserData = plainToClass(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
-
     const data = {
-      access_token: this.generateAccessToken(user.id),
+      access_token: this.generateAccessToken(responseUserData.id),
       userData: responseUserData,
     };
 

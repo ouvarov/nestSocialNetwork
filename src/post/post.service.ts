@@ -18,7 +18,7 @@ export class PostService {
     token: string,
   ): Promise<{ postData: PostResponseDto }> {
     const user = await this.authService.validationRefreshToken(token);
-
+    console.log(user);
     const { text, imageUrl } = createPostDto;
 
     const post = await this.postDatabaseService.createPost({
@@ -62,6 +62,8 @@ export class PostService {
       throw new NotFoundException('User not found');
     }
 
+    console.log(user, ' user');
+
     const userId: string = user.userData.id;
     const post = await this.postDatabaseService.toggleLikeOnPost({
       postId: id,
@@ -92,6 +94,10 @@ export class PostService {
       userId,
     });
 
-    return deletePost;
+    const postData = plainToClass(PostResponseDto, deletePost, {
+      excludeExtraneousValues: true,
+    });
+
+    return postData;
   }
 }
