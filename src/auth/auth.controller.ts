@@ -12,6 +12,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
   ) {}
+
   @Post('/create')
   async create(
     @Body(CreateUserPipe) createAuthDto: CreateAuthDto,

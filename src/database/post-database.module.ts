@@ -63,10 +63,10 @@ export class PostDatabaseService {
     const result = await this.databaseService.query(query, values);
 
     if (result.rowCount === 0) {
-      throw new Error('Post not found or you are not the owner'); // Если пост не найден или пользователь не является владельцем
+      throw new Error('Post not found or you are not the owner');
     }
 
-    return result.rows[0]; // Возвращаем id удалённого поста
+    return result.rows[0];
   }
 
   async allPosts(id: string) {
