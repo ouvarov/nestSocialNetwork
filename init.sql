@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS Users (
 
 CREATE TABLE IF NOT EXISTS Chats (
     chat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    chat_name VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS ChatMembers (

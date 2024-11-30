@@ -11,7 +11,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as redisStore from 'cache-manager-redis-store';
 import { CacheStoreFactory } from '@nestjs/common/cache';
 import { ChatModule } from './chat/chat.module';
-import { ChatService } from './chat/chat.service';
 
 const environment = process.env.NODE_ENV || 'development';
 @Module({
