@@ -8,8 +8,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
 import { DatabaseService } from '../database/database.provider';
 import { UserModule } from '../user/user.module';
-import { AuthDatabaseService } from '../database/auth-database.module';
-import { UserDatabaseService } from '../database/user-database.module';
+import { AuthDatabaseService } from '../database/auth-database.service';
+import { UserDatabaseService } from '../database/user-database.service';
 
 @Module({
   providers: [

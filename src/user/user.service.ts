@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { User } from './user.schema';
-import { Model } from 'mongoose';
-import { InjectModel } from '@nestjs/mongoose';
-import { UserDatabaseService } from '../database/user-database.module';
+import { UserDatabaseService } from '../database/user-database.service';
+import { plainToClass } from 'class-transformer';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectModel(User.name) private UserModel: Model<User>,
-    private readonly userDatabaseService: UserDatabaseService,
-  ) {}
+  constructor(private readonly userDatabaseService: UserDatabaseService) {}
   async findAll() {
-    const users = await this.UserModel.find().exec();
+    const users = await this.userDatabaseService.findAll();
 
-    return users;
+    const responseUserData = plainToClass(UserResponseDto, users, {
+      excludeExtraneousValues: true,
+    });
+
+    return responseUserData;
   }
 
   async findOneById(id: string) {

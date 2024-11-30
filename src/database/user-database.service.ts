@@ -23,10 +23,18 @@ export class UserDatabaseService {
       WHERE user_id = $1;
     `;
 
-    console.log(id, 'id');
-
     const result = await this.databaseService.query(query, [id]);
 
     return result.rows.length > 0 ? result.rows[0] : null;
+  }
+
+  async findAll() {
+    const query = `
+      SELECT * FROM Users;
+    `;
+
+    const result = await this.databaseService.query(query);
+
+    return result.rows;
   }
 }

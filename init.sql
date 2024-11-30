@@ -3,8 +3,8 @@ CREATE TABLE IF NOT EXISTS Users (
     user_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     image_url VARCHAR(255),
-    following UUID[],
-    followers UUID[],
+    following UUID[] NOT NULL DEFAULT '{}',
+    followers UUID[] NOT NULL DEFAULT '{}',
     description TEXT,
     created TIMESTAMP DEFAULT NOW(),
     password VARCHAR(255) NOT NULL
@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS Users (
 
 CREATE TABLE IF NOT EXISTS Chats (
     chat_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chat_name VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW()
 );
 

@@ -16,10 +16,10 @@ export class AuthDatabaseService {
     password: string;
   }): Promise<UserEntity> {
     const query = `
-        INSERT INTO Users (user_name, email, password)
-        VALUES ($1, $2, $3)
-        RETURNING user_id, user_name, image_url, following, followers, description, created;
-    `;
+      INSERT INTO Users (user_name, email, password, following, followers, description, image_url)
+      VALUES ($1, $2, $3, '{}', '{}', '', '')
+      RETURNING user_id, user_name, image_url, following, followers, description, created;
+  `;
 
     const values = [userName, email, password];
 

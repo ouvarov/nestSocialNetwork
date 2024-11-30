@@ -4,7 +4,7 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { plainToClass } from 'class-transformer';
 import { PostResponseDto } from './dto/post-response.dto';
 import { AuthService } from '../auth/auth.service';
-import { PostDatabaseService } from '../database/post-database.module';
+import { PostDatabaseService } from '../database/post-database.service';
 
 @Injectable()
 export class PostService {
