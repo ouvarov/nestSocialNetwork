@@ -15,7 +15,11 @@ const environment = process.env.NODE_ENV || 'development';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      envFilePath: [`.env.${environment}`, `.env.${environment}.local`],
+      envFilePath: [
+        `.env.${environment}`,
+        `.env.${environment}.local`,
+        '.env.test.local',
+      ],
       isGlobal: true,
       validationSchema: Joi.object({
         DB_URL: Joi.string().required(),
