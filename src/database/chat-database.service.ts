@@ -77,12 +77,53 @@ export class ChatDatabaseService {
 
     const result = await this.databaseService.query(query, [chatId]);
 
-    // Проверяем, если в результатах только чат без сообщений
     if (result.rows.length === 1 && result.rows[0].message_id === null) {
       return [];
     }
 
     return result.rows;
+  }
+
+  async deleteChat(chatId: string): Promise<void> {
+    const query = `
+    DELETE FROM Chats
+    WHERE chat_id = $1
+    RETURNING chat_id;
+  `;
+
+    const result = await this.databaseService.query(query, [chatId]);
+
+    if (result.rowCount === 0) {
+      throw new Error(`Chat with ID ${chatId} does not exist.`);
+    }
+
+    return result;
+  }
+
+  async updateChatName({
+    chatId,
+    newChatName,
+  }: {
+    chatId: string;
+    newChatName: string;
+  }): Promise<void> {
+    const query = `
+    UPDATE Chats
+    SET chat_name = $1
+    WHERE chat_id = $2
+    RETURNING chat_id, chat_name;
+  `;
+
+    const result = await this.databaseService.query(query, [
+      newChatName,
+      chatId,
+    ]);
+
+    if (result.rowCount === 0) {
+      throw new Error(`Chat with ID ${chatId} does not exist.`);
+    }
+
+    return result;
   }
 
   async getAllChats(): Promise<{ chat_id: string; chat_name: string }[]> {

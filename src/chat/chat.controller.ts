@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
+import { UpdateChatDto } from './dto/update-chat.dto';
+import { JwtAuthGuard } from '../auth/auth.guard';
 
 @Controller('chat')
+@UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
@@ -19,5 +31,15 @@ export class ChatController {
   @Get('/find/:id')
   findOne(@Param('id') id: string) {
     return this.chatService.findOne(id);
+  }
+
+  @Put('/update')
+  update(@Body() updateChatDto: UpdateChatDto) {
+    return this.chatService.updateChatName(updateChatDto);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.chatService.deleteChat(id);
   }
 }

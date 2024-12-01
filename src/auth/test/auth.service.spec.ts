@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Response } from 'express';
 import { AuthService } from '../auth.service';
-import { AuthDatabaseService } from '../../database/auth-database.module';
+import { AuthDatabaseService } from '../../database/auth-database.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CreateAuthDto } from '../dto/create-auth.dto';
@@ -101,7 +101,7 @@ describe('AuthService', () => {
 
     expect(userResponse).toBeInstanceOf(UserResponseDto);
     expect(result.access_token).toBe('access_token');
-    console.log(res.cookie);
+
     const token =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImlhdCI6MTczMjk3NjEwMCwiZXhwIjoxNzM1NTY4MTAwfQ.XEH0IXKWP6OGqPGE-_kKFZin1AeUWfEin41RRHQ37JQ';
 
@@ -111,7 +111,6 @@ describe('AuthService', () => {
       maxAge: 2592000000,
     });
 
-    // Обновленный тест
     expect(mockFn).toHaveBeenCalledWith(
       'jwt-refresh-secret-key',
       token,
@@ -171,7 +170,7 @@ describe('AuthService', () => {
     const userId = 1;
     const token = authService.generateRefreshToken(userId);
     expect(typeof token).toBe('string');
-    console.log(jwtService.sign);
+
     expect(jwtService.sign).toHaveBeenCalledWith({ sub: userId });
   });
 
