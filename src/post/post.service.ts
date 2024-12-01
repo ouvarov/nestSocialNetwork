@@ -18,8 +18,11 @@ export class PostService {
     token: string,
   ): Promise<{ postData: PostResponseDto }> {
     const user = await this.authService.validationRefreshToken(token);
-    console.log(user);
     const { text, imageUrl } = createPostDto;
+
+    if (user.userData.id !== createPostDto.ownerId) {
+      throw new NotFoundException('User not owner');
+    }
 
     const post = await this.postDatabaseService.createPost({
       userId: user.userData.id,
@@ -83,6 +86,8 @@ export class PostService {
 
   async remove(id: string, token: string): Promise<any> {
     const user = await this.authService.validationRefreshToken(token);
+
+    console.log(user);
     if (!user) {
       throw new NotFoundException('User not found');
     }
