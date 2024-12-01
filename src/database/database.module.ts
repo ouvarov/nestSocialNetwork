@@ -4,6 +4,7 @@ import { PostDatabaseService } from './post-database.service';
 import { AuthDatabaseService } from './auth-database.service';
 import { UserDatabaseService } from './user-database.service';
 import { ChatDatabaseService } from './chat-database.service';
+import { MessageDatabaseService } from './message-database.service';
 
 @Module({
   providers: [
@@ -12,6 +13,7 @@ import { ChatDatabaseService } from './chat-database.service';
     AuthDatabaseService,
     UserDatabaseService,
     ChatDatabaseService,
+    MessageDatabaseService,
   ],
   exports: [
     DatabaseService,
@@ -19,6 +21,7 @@ import { ChatDatabaseService } from './chat-database.service';
     AuthDatabaseService,
     UserDatabaseService,
     ChatDatabaseService,
+    MessageDatabaseService,
   ],
 })
 export class DatabaseModule {}
