@@ -74,7 +74,14 @@ export class ChatDatabaseService {
     ORDER BY 
         m.sent_at ASC;
   `;
+
     const result = await this.databaseService.query(query, [chatId]);
+
+    // Проверяем, если в результатах только чат без сообщений
+    if (result.rows.length === 1 && result.rows[0].message_id === null) {
+      return [];
+    }
+
     return result.rows;
   }
 

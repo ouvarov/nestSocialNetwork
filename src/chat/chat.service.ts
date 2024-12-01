@@ -7,23 +7,14 @@ import { ChatDatabaseService } from '../database/chat-database.service';
 export class ChatService {
   constructor(private readonly chatDatabaseModule: ChatDatabaseService) {}
   async create(userIds: string[]) {
-    const newChat = await this.chatDatabaseModule.createChat({ userIds });
-    return newChat;
+    return await this.chatDatabaseModule.createChat({ userIds });
   }
 
-  findAll() {
-    return `This action returns all chat`;
+  async findAll() {
+    return await this.chatDatabaseModule.getAllChats();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} chat`;
-  }
-
-  update(id: number, updateChatDto: UpdateChatDto) {
-    return `This action updates a #${id} chat`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} chat`;
+  async findOne(id: string) {
+    return await this.chatDatabaseModule.getChatWithMessages(id);
   }
 }
