@@ -59,6 +59,7 @@ export class ChatDatabaseService {
     SELECT 
         c.chat_id,
         c.created_at AS chat_created_at,
+        c.chat_name,  -- Добавляем chat_name в запрос
         m.message_id,
         m.sender_id,
         m.content,
@@ -77,11 +78,12 @@ export class ChatDatabaseService {
 
     const result = await this.databaseService.query(query, [chatId]);
 
-    if (result.rows.length === 1 && result.rows[0].message_id === null) {
-      return [];
-    }
+    const messages = result.rows.filter((row) => row.message_id !== null);
 
-    return result.rows;
+    return {
+      chatName: result.rows[0]?.chat_name || '',
+      messages: messages.length > 0 ? messages : [],
+    };
   }
 
   async deleteChat(chatId: string): Promise<void> {
