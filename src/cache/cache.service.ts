@@ -10,7 +10,7 @@ export class CacheService {
   ) {}
 
   // Set data in the cache
-  async setCache(key: string, value: any, ttl: number = 3600) {
+  async setCache(key: string, value: any, ttl: number = 10000) {
     try {
       await this.cacheManager.set(key, value, ttl);
     } catch (error) {

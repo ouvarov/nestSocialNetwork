@@ -32,6 +32,10 @@ export class PostService {
       text,
     });
 
+    const cacheKey = `post:${user.userData.id}`;
+
+    await this.cacheService.deleteCache(cacheKey);
+
     const responsePostData = plainToClass(PostResponseDto, post, {
       excludeExtraneousValues: true,
     });
@@ -46,6 +50,8 @@ export class PostService {
   async find(id: string): Promise<{ postsData: PostResponseDto[] }> {
     const cacheKey = `post:${id}`;
     let findAllPosts = await this.cacheService.getCache(cacheKey);
+
+    console.log(findAllPosts);
 
     if (!findAllPosts) {
       findAllPosts = await this.postDatabaseService.allPosts(id);
@@ -75,8 +81,6 @@ export class PostService {
       throw new NotFoundException('User not found');
     }
 
-    console.log(user, ' user');
-
     const userId: string = user.userData.id;
     const post = await this.postDatabaseService.toggleLikeOnPost({
       postId: id,
@@ -86,6 +90,10 @@ export class PostService {
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    const cacheKey = `post:${userId}`;
+
+    await this.cacheService.deleteCache(cacheKey);
 
     const postData = plainToClass(PostResponseDto, post, {
       excludeExtraneousValues: true,
@@ -97,12 +105,15 @@ export class PostService {
   async remove(id: string, token: string): Promise<any> {
     const user = await this.authService.validationRefreshToken(token);
 
-    console.log(user);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
     const userId: string = user.userData.id;
+
+    const cacheKey = `post:${userId}`;
+
+    await this.cacheService.deleteCache(cacheKey);
 
     const deletePost = await this.postDatabaseService.deletePost({
       postId: id,
