@@ -5,12 +5,14 @@ import { plainToClass } from 'class-transformer';
 import { PostResponseDto } from './dto/post-response.dto';
 import { AuthService } from '../auth/auth.service';
 import { PostDatabaseService } from '../database/post-database.service';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class PostService {
   constructor(
     private readonly authService: AuthService,
     private readonly postDatabaseService: PostDatabaseService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async create(
@@ -42,13 +44,21 @@ export class PostService {
   }
 
   async find(id: string): Promise<{ postsData: PostResponseDto[] }> {
-    const findAllPosts = await this.postDatabaseService.allPosts(id);
+    const cacheKey = `post:${id}`;
+    let findAllPosts = await this.cacheService.getCache(cacheKey);
+
+    if (!findAllPosts) {
+      findAllPosts = await this.postDatabaseService.allPosts(id);
+      await this.cacheService.setCache(cacheKey, findAllPosts);
+    }
 
     const postsData = findAllPosts?.map((post) => {
       const postObject = post;
-      return plainToClass(PostResponseDto, postObject, {
+      const postDto = plainToClass(PostResponseDto, postObject, {
         excludeExtraneousValues: true,
       });
+
+      return { ...postDto };
     });
 
     const data = {

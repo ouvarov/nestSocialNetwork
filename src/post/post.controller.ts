@@ -9,12 +9,14 @@ import {
   UseGuards,
   Req,
   Put,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { ConfigService } from '@nestjs/config';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 
 @Controller('post')
 @UseGuards(JwtAuthGuard)
@@ -38,6 +40,7 @@ export class PostController {
   }
 
   @Get('/getPosts/:id')
+  @UseInterceptors(CacheInterceptor)
   async find(@Param('id') id: string, @Res() res: Response) {
     const result = await this.postService.find(id);
 

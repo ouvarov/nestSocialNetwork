@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-mydb}
     volumes:
-    - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
 
@@ -17,10 +17,10 @@ services:
     image: redis:7
     container_name: redis
     command: redis-server --save 60 1 --loglevel warning
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
 
   app:
     build:
@@ -35,12 +35,11 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
-      - "3000:3000"
+      - "5002:5000"
     depends_on:
       - db
       - redis
 
-
 volumes:
-  postgres_data:
-  redis_data:
+  postgres_data: {}
+  redis_data: {}

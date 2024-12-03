@@ -8,6 +8,9 @@ import { UserService } from '../user/user.service';
 import { DatabaseModule } from '../database/database.module';
 import { DatabaseService } from '../database/database.provider';
 import { PostDatabaseService } from '../database/post-database.service';
+import { CacheService } from '../cache/cache.service';
+import { CacheDataModule } from '../cache/cashe.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   controllers: [PostController],
@@ -17,8 +20,15 @@ import { PostDatabaseService } from '../database/post-database.service';
     UserService,
     DatabaseService,
     PostDatabaseService,
+    CacheService,
   ],
-  imports: [UserModule, AuthModule, DatabaseModule],
+  imports: [
+    UserModule,
+    AuthModule,
+    DatabaseModule,
+    CacheDataModule,
+    CacheModule.register({ ttl: 6 }),
+  ],
   exports: [PostModule],
 })
 export class PostModule {}

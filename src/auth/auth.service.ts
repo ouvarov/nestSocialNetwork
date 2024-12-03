@@ -104,7 +104,7 @@ export class AuthService {
     const isPasswordEquals = await bcrypt.compare(password, user.password);
 
     if (!user || !isPasswordEquals) {
-      throw new HttpException('bad credentials', HttpStatus.BAD_REQUEST);
+      throw new HttpException('bad credentials', HttpStatus.FORBIDDEN);
     }
 
     const responseUserData = plainToClass(UserResponseDto, user, {
