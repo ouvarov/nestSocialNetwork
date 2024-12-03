@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from './database.provider';
+import { GetChatDto } from '../chat/dto/get-chat.dto';
 
 @Injectable()
 export class ChatDatabaseService {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async createChat({ userIds }: { userIds: string[] }): Promise<string> {
-    console.log(userIds);
     const userIdsSorted = userIds.sort();
 
     const existingChatResult = await this.databaseService.query(
@@ -54,7 +54,7 @@ export class ChatDatabaseService {
     return newChatId;
   }
 
-  async getChatWithMessages(chatId: string) {
+  async getChatWithMessages(chatId: GetChatDto) {
     const query = `
     SELECT 
         c.chat_id,

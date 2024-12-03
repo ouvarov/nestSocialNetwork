@@ -61,30 +61,44 @@ export class AuthService {
   ): Promise<{ access_token: string; userData: UserResponseDto }> {
     const { email, password, userName } = createUserDto;
 
-    const user = await this.authDatabaseService.createUser({
-      email,
-      password,
-      userName,
-    });
+    try {
+      const user = await this.authDatabaseService.createUser({
+        email,
+        password,
+        userName,
+      });
 
-    const responseUserData = plainToClass(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
+      const responseUserData = plainToClass(UserResponseDto, user, {
+        excludeExtraneousValues: true,
+      });
 
-    const refreshToken = this.generateRefreshToken(responseUserData.id);
+      const refreshToken = this.generateRefreshToken(responseUserData.id);
 
-    res.cookie(this.refreshTokenSecret, refreshToken, {
-      httpOnly: true,
-      secure: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
+      res.cookie(this.refreshTokenSecret, refreshToken, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
 
-    const data = {
-      access_token: this.generateAccessToken(responseUserData.id),
-      userData: { ...responseUserData },
-    };
+      const data = {
+        access_token: this.generateAccessToken(responseUserData.id),
+        userData: { ...responseUserData },
+      };
 
-    return data;
+      return data;
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new HttpException(
+          `A user with the email ${email} already exists.`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      throw new HttpException(
+        'An unexpected error occurred. Please try again later.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   logout(res: Response) {

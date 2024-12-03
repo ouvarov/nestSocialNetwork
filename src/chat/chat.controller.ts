@@ -12,6 +12,7 @@ import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
+import { GetChatDto } from './dto/get-chat.dto';
 
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
@@ -20,6 +21,7 @@ export class ChatController {
 
   @Post('/create')
   create(@Body() createChatDto: CreateChatDto) {
+    console.log(createChatDto.userIds);
     return this.chatService.create(createChatDto.userIds);
   }
 
@@ -29,7 +31,7 @@ export class ChatController {
   }
 
   @Get('/find/:id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: GetChatDto) {
     return this.chatService.findOne(id);
   }
 
