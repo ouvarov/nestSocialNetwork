@@ -1,4 +1,3 @@
-import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { PostModule } from './post/post.module';
@@ -27,6 +26,8 @@ const environment = process.env.NODE_ENV || 'development';
         DB_URL: Joi.string().required(),
         JWT_ACCESS_SECRET: Joi.string().required(),
         REFRESH_TOKEN_SECRET: Joi.string().required(),
+        REDIS_HOST: Joi.string().default('localhost'),
+        REDIS_PORT: Joi.number().default(6379),
       }),
     }),
     CacheModule.registerAsync({
@@ -36,14 +37,13 @@ const environment = process.env.NODE_ENV || 'development';
         configService: ConfigService,
       ): Promise<CacheOptions<any>> => ({
         store: redisStore as unknown as CacheStoreFactory,
-        host: configService.get('REDIS_HOST', 'localhost'),
-        port: configService.get('REDIS_PORT', 5432),
+        host: configService.get('REDIS_HOST'),
+        port: configService.get('REDIS_PORT'),
         ttl: 300,
       }),
     }),
     AuthModule,
     UserModule,
-    MongooseModule.forRoot(process.env.DB_URL),
     PostModule,
     DatabaseModule,
     ChatModule,
