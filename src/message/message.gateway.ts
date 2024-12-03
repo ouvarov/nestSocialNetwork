@@ -39,18 +39,6 @@ export class MessageGateway {
 
     this.server.to(createMessageDto.chatId).emit('newMessage', newMessage);
 
-    console.log(newMessage);
-
     return newMessage;
-  }
-
-  @SubscribeMessage('updateMessage')
-  update(@MessageBody() updateMessageDto: UpdateMessageDto) {
-    return this.messageService.update(updateMessageDto.id, updateMessageDto);
-  }
-
-  @SubscribeMessage('removeMessage')
-  remove(@MessageBody() id: number) {
-    return this.messageService.remove(id);
   }
 }
