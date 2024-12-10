@@ -41,7 +41,7 @@ export class PostDatabaseService {
             ELSE array_append(likes, $1) 
             END
         WHERE post_id = $2
-            RETURNING post_id, likes;
+            RETURNING post_id, likes, owner_id;
     `;
 
     const values = [userId, postId];

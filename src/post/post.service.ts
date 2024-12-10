@@ -51,8 +51,6 @@ export class PostService {
     const cacheKey = `post:${id}`;
     let findAllPosts = await this.cacheService.getCache(cacheKey);
 
-    console.log(findAllPosts);
-
     if (!findAllPosts) {
       findAllPosts = await this.postDatabaseService.allPosts(id);
       await this.cacheService.setCache(cacheKey, findAllPosts);
@@ -91,13 +89,16 @@ export class PostService {
       throw new NotFoundException('Post not found');
     }
 
-    const cacheKey = `post:${userId}`;
+    const cacheKey = `post:${post.owner_id}`;
 
     await this.cacheService.deleteCache(cacheKey);
 
     const postData = plainToClass(PostResponseDto, post, {
       excludeExtraneousValues: true,
     });
+
+    console.log(post, 'post');
+    console.log(postData, 'postData');
 
     return postData;
   }
