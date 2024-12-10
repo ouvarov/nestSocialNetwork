@@ -12,6 +12,7 @@ import { CacheStoreFactory } from '@nestjs/common/cache';
 import { ChatModule } from './chat/chat.module';
 import { MessageModule } from './message/message.module';
 import { CacheDataModule } from './cache/cashe.module';
+import { UploadModule } from './upload/upload.module';
 
 const environment = process.env.NODE_ENV || 'development';
 @Module({
@@ -52,6 +53,7 @@ const environment = process.env.NODE_ENV || 'development';
     ChatModule,
     MessageModule,
     CacheDataModule,
+    UploadModule,
   ],
 })
 export class AppModule {}
