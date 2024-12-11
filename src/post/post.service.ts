@@ -49,7 +49,8 @@ export class PostService {
 
   async find(id: string): Promise<{ postsData: PostResponseDto[] }> {
     const cacheKey = `post:${id}`;
-    let findAllPosts = await this.cacheService.getCache(cacheKey);
+    let findAllPosts =
+      await this.cacheService.getCache<PostResponseDto[]>(cacheKey);
 
     if (!findAllPosts) {
       findAllPosts = await this.postDatabaseService.allPosts(id);

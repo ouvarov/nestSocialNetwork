@@ -20,8 +20,8 @@ export class CacheService {
   }
 
   // Get data from the cache
-  async getCache(key: string): Promise<any> {
-    return await this.cacheManager.get(key);
+  async getCache<T>(key: string): Promise<T> {
+    return await this.cacheManager.get<T>(key);
   }
 
   // Delete data from the cache
