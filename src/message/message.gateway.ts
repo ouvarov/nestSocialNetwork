@@ -8,7 +8,6 @@ import {
 import { Server, Socket } from 'socket.io';
 import { MessageService } from './message.service';
 import { CreateMessageDto } from './dto/create-message.dto';
-import { UpdateMessageDto } from './dto/update-message.dto';
 
 @WebSocketGateway(5001, {
   cors: {

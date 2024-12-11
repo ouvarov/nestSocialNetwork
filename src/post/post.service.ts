@@ -98,9 +98,6 @@ export class PostService {
       excludeExtraneousValues: true,
     });
 
-    console.log(post, 'post');
-    console.log(postData, 'postData');
-
     return postData;
   }
 
