@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from './database.provider';
+import { Inject, Injectable } from '@nestjs/common';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { Messages } from '@/database/schemas/messages.schema';
 
 @Injectable()
 export class MessageDatabaseService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    @Inject('DRIZZLE_ORM')
+    private readonly Drizzle: ReturnType<typeof drizzle>,
+  ) {}
 
   async createMessage({
     chatId,
@@ -14,30 +18,30 @@ export class MessageDatabaseService {
     senderId: string;
     content: string;
   }) {
-    const query = `
-    INSERT INTO Messages (chat_id, sender_id, content, sent_at)
-    VALUES ($1, $2, $3, NOW())
-    RETURNING message_id, chat_id, sender_id, content, sent_at;
-  `;
+    const [message] = await this.Drizzle.insert(Messages)
+      .values({
+        chat_id: chatId,
+        sender_id: senderId,
+        content,
+      })
+      .returning({
+        messageId: Messages.message_id,
+        chatId: Messages.chat_id,
+        senderId: Messages.sender_id,
+        content: Messages.content,
+        sentAt: Messages.sent_at,
+      });
 
-    const result = await this.databaseService.query(query, [
-      chatId,
-      senderId,
-      content,
-    ]);
-
-    if (result.rows.length === 0) {
+    if (!message) {
       throw new Error('Message creation failed');
     }
 
-    const message = result.rows[0];
-
     return {
-      chat_id: message.chat_id,
+      chat_id: message.chatId,
       content: message.content,
-      message_id: message.message_id,
-      sender_id: message.sender_id,
-      sent_at: message.sent_at,
+      message_id: message.messageId,
+      sender_id: message.senderId,
+      sent_at: message.sentAt,
     };
   }
 }

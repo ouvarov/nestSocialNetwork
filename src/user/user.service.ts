@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { UserDatabaseService } from '../database/user-database.service';
+import { UserDatabaseOrmService } from '@/database/user-database.service';
+
 import { plainToClass } from 'class-transformer';
+
 import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly userDatabaseService: UserDatabaseService) {}
+  constructor(private readonly userDatabaseService: UserDatabaseOrmService) {}
   async findAll() {
     const users = await this.userDatabaseService.findAll();
 

@@ -1,21 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { ConfigService } from '@nestjs/config';
+import * as postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 
 @Injectable()
-export class DatabaseService {
-  private pool: Pool;
+export class DatabaseProvider {
+  private db;
 
-  constructor() {
-    this.pool = new Pool({
-      user: 'user',
-      host: 'localhost',
-      database: 'mydb',
-      password: 'password',
-      port: 5432,
+  constructor(private readonly configService: ConfigService) {
+    const dbHost = this.configService.get<string>('DB_HOST') || 'localhost';
+    const dbPort = this.configService.get<number>('DB_PORT') || 5432;
+    const dbUser = this.configService.get<string>('POSTGRES_USER') || 'user';
+    const dbPassword =
+      this.configService.get<string>('POSTGRES_PASSWORD') || 'password';
+    const dbName = this.configService.get<string>('POSTGRES_DB') || 'mydb';
+
+    const sqlClient = postgres({
+      user: dbUser,
+      host: dbHost,
+      database: dbName,
+      password: dbPassword,
+      port: dbPort,
     });
+
+    this.db = drizzle(sqlClient);
   }
 
-  query(text: string, params?: any[]) {
-    return this.pool.query(text, params);
+  getDbInstance() {
+    return this.db;
   }
 }

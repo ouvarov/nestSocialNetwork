@@ -1,24 +1,26 @@
+import { JwtModule } from '@nestjs/jwt';
 import { Module } from '@nestjs/common';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UserService } from '../user/user.service';
-import { DatabaseService } from '../database/database.provider';
-import { UserModule } from '../user/user.module';
-import { AuthDatabaseService } from '../database/auth-database.service';
-import { UserDatabaseService } from '../database/user-database.service';
+
+import { UserModule } from '@/user/user.module';
+import { UserService } from '@/user/user.service';
+import { DatabaseModule } from '@/database/database.module';
+import { DatabaseProvider } from '@/database/database.provider';
+import { AuthDatabaseService } from '@/database/auth-database.service';
 
 @Module({
   providers: [
     JwtStrategy,
     AuthService,
     UserService,
-    DatabaseService,
     AuthDatabaseService,
-    UserDatabaseService,
+    DatabaseProvider,
+    AuthDatabaseService,
   ],
   controllers: [AuthController],
   imports: [
@@ -32,6 +34,7 @@ import { UserDatabaseService } from '../database/user-database.service';
       }),
     }),
     UserModule,
+    DatabaseModule,
   ],
   exports: [JwtModule],
 })

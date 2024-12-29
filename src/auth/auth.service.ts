@@ -1,15 +1,18 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { plainToClass } from 'class-transformer';
-import { CreateAuthDto } from './dto/create-auth.dto';
 import { JwtService } from '@nestjs/jwt';
-import * as jwt from 'jsonwebtoken';
-import { Response } from 'express';
-import { UserResponseDto } from '../user/dto/user-response.dto';
-import { UserService } from '../user/user.service';
 import { ConfigService } from '@nestjs/config';
-import { LoginAuthDto } from './dto/login-auth.dto';
+
 import * as bcrypt from 'bcryptjs';
-import { AuthDatabaseService } from '../database/auth-database.service';
+import { Response } from 'express';
+import * as jwt from 'jsonwebtoken';
+import { plainToClass } from 'class-transformer';
+
+import { UserDto } from '@/user/dto/user.dto';
+import { UserService } from '@/user/user.service';
+import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
+import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
+import { UserResponseDto } from '@/user/dto/user-response.dto';
+import { AuthDatabaseService } from '@/database/auth-database.service';
 
 @Injectable()
 export class AuthService {
@@ -17,7 +20,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly configService: ConfigService,
-    private readonly authDatabaseService: AuthDatabaseService,
+    private readonly authDatabaseOrmService: AuthDatabaseService,
   ) {}
 
   private readonly refreshTokenSecret = this.configService.get<string>(
@@ -58,17 +61,17 @@ export class AuthService {
   async create(
     createUserDto: CreateAuthDto,
     res: Response,
-  ): Promise<{ access_token: string; userData: UserResponseDto }> {
-    const { email, password, userName } = createUserDto;
+  ): Promise<{ access_token: string; userData: UserDto }> {
+    const { userName, email, password } = createUserDto;
 
     try {
-      const user = await this.authDatabaseService.createUser({
+      const getUser = await this.authDatabaseOrmService.createUser({
+        userName,
         email,
         password,
-        userName,
       });
 
-      const responseUserData = plainToClass(UserResponseDto, user, {
+      const responseUserData = plainToClass(UserResponseDto, getUser, {
         excludeExtraneousValues: true,
       });
 
@@ -87,6 +90,7 @@ export class AuthService {
 
       return data;
     } catch (error) {
+      console.log(error);
       if (error.code === '23505') {
         throw new HttpException(
           `A user with the email ${email} already exists.`,

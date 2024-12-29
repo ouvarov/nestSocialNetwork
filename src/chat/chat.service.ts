@@ -1,7 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { ChatDatabaseService } from '../database/chat-database.service';
 import { UpdateChatDto } from './dto/update-chat.dto';
-import { GetChatDto } from './dto/get-chat.dto';
+import { ChatDatabaseService } from '@/database/chat-database.service';
 
 @Injectable()
 export class ChatService {
@@ -29,7 +28,7 @@ export class ChatService {
     return await this.chatDatabaseModule.getAllChats();
   }
 
-  async findOne(id: GetChatDto) {
+  async findOne(id: string) {
     try {
       return await this.chatDatabaseModule.getChatWithMessages(id);
     } catch (error) {

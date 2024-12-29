@@ -1,40 +1,34 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from './database.provider';
-import { UserEntity } from '../user/entities/user.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+
+import { UserDataDto } from '@/user/dto/user-data.dto';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { Users } from '@/database/schemas/users.schema';
 
 @Injectable()
-export class UserDatabaseService {
-  constructor(private readonly databaseService: DatabaseService) {}
+export class UserDatabaseOrmService {
+  constructor(
+    @Inject('DRIZZLE_ORM')
+    private readonly Drizzle: ReturnType<typeof drizzle>,
+  ) {}
 
-  async findByEmail(email: string): Promise<UserEntity> {
-    const query = `
-        SELECT * FROM Users
-        WHERE email = $1;
-    `;
+  async findByEmail(email: string): Promise<UserDataDto | null> {
+    const [user] = await this.Drizzle.select()
+      .from(Users)
+      .where(eq(Users.email, email));
 
-    const result = await this.databaseService.query(query, [email]);
-
-    return result.rows.length > 0 ? result.rows[0] : null;
+    return user || null;
   }
 
-  async findById(id: string) {
-    const query = `
-      SELECT * FROM Users
-      WHERE user_id = $1;
-    `;
+  async findById(id: string): Promise<UserDataDto | null> {
+    const [user] = await this.Drizzle.select()
+      .from(Users)
+      .where(eq(Users.user_id, id));
 
-    const result = await this.databaseService.query(query, [id]);
-
-    return result.rows.length > 0 ? result.rows[0] : null;
+    return user || null;
   }
 
-  async findAll() {
-    const query = `
-      SELECT * FROM Users;
-    `;
-
-    const result = await this.databaseService.query(query);
-
-    return result.rows;
+  async findAll(): Promise<UserDataDto[]> {
+    return await this.Drizzle.select().from(Users);
   }
 }

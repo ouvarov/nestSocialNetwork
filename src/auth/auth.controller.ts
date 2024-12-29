@@ -1,11 +1,13 @@
 import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { CreateUserPipe } from './pipes/CreateUserPipe';
+
 import { Response, Request } from 'express';
+
 import { ConfigService } from '@nestjs/config';
-import { LoginAuthDto } from './dto/login-auth.dto';
+import { AuthService } from '@/auth/auth.service';
+import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
+import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
+import { CreateUserPipe } from '@/auth/pipes/CreateUserPipe';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -55,6 +57,7 @@ export class AuthController {
     @Body(CreateUserPipe) createAuthDto: CreateAuthDto,
     @Res() res: Response,
   ) {
+    console.log(createAuthDto);
     const result = await this.authService.create(createAuthDto, res);
     return res.json(result);
   }

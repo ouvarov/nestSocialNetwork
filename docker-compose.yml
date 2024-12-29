@@ -29,7 +29,7 @@ services:
     container_name: nestjs_app
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      DB_URL: postgres://user:password@db:5432/mydb
+      DB_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-mydb}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-jwt-secret-key}
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-jwt-refresh-key}
       REDIS_HOST: redis

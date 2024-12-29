@@ -3,15 +3,15 @@ import { CreatePostDto } from './dto/create-post.dto';
 
 import { plainToClass } from 'class-transformer';
 import { PostResponseDto } from './dto/post-response.dto';
-import { AuthService } from '../auth/auth.service';
-import { PostDatabaseService } from '../database/post-database.service';
-import { CacheService } from '../cache/cache.service';
+import { PostDatabaseOrmService } from '@/database/post-database.service';
+import { AuthService } from '@/auth/auth.service';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class PostService {
   constructor(
     private readonly authService: AuthService,
-    private readonly postDatabaseService: PostDatabaseService,
+    private readonly postOrmDatabaseService: PostDatabaseOrmService,
     private readonly cacheService: CacheService,
   ) {}
 
@@ -26,7 +26,7 @@ export class PostService {
       throw new NotFoundException('User not owner');
     }
 
-    const post = await this.postDatabaseService.createPost({
+    const post = await this.postOrmDatabaseService.createPost({
       userId: user.userData.id,
       imageUrl,
       text,
@@ -47,13 +47,14 @@ export class PostService {
     return data;
   }
 
-  async find(id: string): Promise<{ postsData: PostResponseDto[] }> {
+  async find(id: string): Promise<{ postsData: any }> {
     const cacheKey = `post:${id}`;
-    let findAllPosts =
-      await this.cacheService.getCache<PostResponseDto[]>(cacheKey);
+    let findAllPosts = await this.cacheService.getCache<any>(cacheKey);
+
+    console.log(findAllPosts, cacheKey);
 
     if (!findAllPosts) {
-      findAllPosts = await this.postDatabaseService.allPosts(id);
+      findAllPosts = await this.postOrmDatabaseService.allPosts(id);
       await this.cacheService.setCache(cacheKey, findAllPosts);
     }
 
@@ -81,7 +82,7 @@ export class PostService {
     }
 
     const userId: string = user.userData.id;
-    const post = await this.postDatabaseService.toggleLikeOnPost({
+    const post = await this.postOrmDatabaseService.toggleLikeOnPost({
       postId: id,
       userId,
     });
@@ -114,7 +115,7 @@ export class PostService {
 
     await this.cacheService.deleteCache(cacheKey);
 
-    const deletePost = await this.postDatabaseService.deletePost({
+    const deletePost = await this.postOrmDatabaseService.deletePost({
       postId: id,
       userId,
     });

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CreateMessageDto } from './dto/create-message.dto';
 
-import { MessageDatabaseService } from '../database/message-database.service';
+import { MessageDatabaseService } from '@/database/message-database.service';
 
 @Injectable()
 export class MessageService {

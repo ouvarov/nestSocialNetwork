@@ -3,7 +3,6 @@ import { UserModule } from './user/user.module';
 import { PostModule } from './post/post.module';
 import * as process from 'process';
 import * as Joi from 'joi';
-import { DatabaseModule } from './database/database.module';
 import { Module } from '@nestjs/common';
 import { CacheModule, CacheOptions } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -13,6 +12,7 @@ import { ChatModule } from './chat/chat.module';
 import { MessageModule } from './message/message.module';
 import { CacheDataModule } from './cache/cashe.module';
 import { UploadModule } from './upload/upload.module';
+import { DatabaseModule } from './database/database.module';
 
 const environment = process.env.NODE_ENV || 'development';
 @Module({

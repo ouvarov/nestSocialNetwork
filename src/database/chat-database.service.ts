@@ -1,105 +1,94 @@
-import { Injectable } from '@nestjs/common';
-import { DatabaseService } from './database.provider';
-import { GetChatDto } from '../chat/dto/get-chat.dto';
+import { Inject, Injectable } from '@nestjs/common';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { eq, inArray, sql } from 'drizzle-orm';
+
+import { ChatMembers } from '@/database/schemas/chatMembers.schema';
+import { Users } from '@/database/schemas/users.schema';
+import { Chats } from '@/database/schemas/chats.schema';
+import { Messages } from '@/database/schemas/messages.schema';
 
 @Injectable()
 export class ChatDatabaseService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    @Inject('DRIZZLE_ORM')
+    private readonly Drizzle: ReturnType<typeof drizzle>,
+  ) {}
 
   async createChat({ userIds }: { userIds: string[] }): Promise<string> {
     const userIdsSorted = userIds.sort();
 
-    const existingChatResult = await this.databaseService.query(
-      `SELECT cm.chat_id
-     FROM ChatMembers cm
-     WHERE cm.user_id = ANY($1)
-     GROUP BY cm.chat_id
-     HAVING COUNT(cm.user_id) = $2`,
-      [userIdsSorted, userIdsSorted.length],
-    );
+    const existingChat = await this.Drizzle.select({
+      chatId: ChatMembers.chat_id,
+    })
+      .from(ChatMembers)
+      .where(inArray(ChatMembers.user_id, userIdsSorted))
+      .groupBy(ChatMembers.chat_id)
+      .having(sql`COUNT(${ChatMembers.user_id}) = ${userIdsSorted.length}`)
+      .limit(1);
 
-    if (existingChatResult.rows.length > 0) {
-      return existingChatResult.rows[0].chat_id;
+    if (existingChat.length > 0) {
+      return existingChat[0].chatId;
     }
 
-    const usersResult = await this.databaseService.query(
-      `SELECT user_name 
-     FROM Users 
-     WHERE user_id = ANY($1)`,
-      [userIdsSorted],
-    );
+    const users = await this.Drizzle.select({ user_name: Users.user_name })
+      .from(Users)
+      .where(inArray(Users.user_id, userIdsSorted));
 
-    const userNames = usersResult.rows.map((row) => row.user_name);
+    const userNames = users.map((row) => row.user_name);
     const chatName = userNames.join(', ');
 
-    const createChatResult = await this.databaseService.query(
-      `INSERT INTO Chats (chat_name, created_at)
-     VALUES ($1, NOW())
-     RETURNING chat_id`,
-      [chatName],
+    const [newChat] = await this.Drizzle.insert(Chats)
+      .values({
+        chatName,
+        createdAt: new Date(),
+      })
+      .returning();
+
+    const insertMembers = userIdsSorted.map((userId) =>
+      this.Drizzle.insert(ChatMembers).values({
+        chat_id: newChat.chat_id,
+        user_id: userId,
+      }),
     );
 
-    const newChatId = createChatResult.rows[0].chat_id;
+    await Promise.all(insertMembers);
 
-    const insertMembersPromises = userIdsSorted.map((userId) =>
-      this.databaseService.query(
-        `INSERT INTO ChatMembers (chat_id, user_id, added_at)
-       VALUES ($1, $2, NOW())`,
-        [newChatId, userId],
-      ),
-    );
-
-    await Promise.all(insertMembersPromises);
-
-    return newChatId;
+    return newChat.chat_id;
   }
 
-  async getChatWithMessages(chatId: GetChatDto) {
-    const query = `
-    SELECT 
-        c.chat_id,
-        c.created_at AS chat_created_at,
-        c.chat_name,  -- Добавляем chat_name в запрос
-        m.message_id,
-        m.sender_id,
-        m.content,
-        m.sent_at
-    FROM 
-        Chats c
-    LEFT JOIN 
-        Messages m
-    ON 
-        c.chat_id = m.chat_id
-    WHERE 
-        c.chat_id = $1
-    ORDER BY 
-        m.sent_at ASC;
-  `;
+  async getChatWithMessages(id: string) {
+    const result = await this.Drizzle.select({
+      chatId: Chats.chat_id,
+      chatName: Chats.chat_name,
+      chatCreatedAt: Chats.created_at,
+      messageId: Messages.message_id,
+      senderId: Messages.sender_id,
+      content: Messages.content,
+      sentAt: Messages.sent_at,
+    })
+      .from(Chats)
+      .leftJoin(Messages, eq(Chats.chat_id, Messages.chat_id))
+      .where(eq(Chats.chat_id, id))
+      .orderBy(Messages.sent_at);
 
-    const result = await this.databaseService.query(query, [chatId]);
-
-    const messages = result.rows.filter((row) => row.message_id !== null);
+    const messages = result.filter((row) => row.messageId !== null);
 
     return {
-      chatName: result.rows[0]?.chat_name || '',
+      chatName: result[0]?.chatName || '',
       messages: messages.length > 0 ? messages : [],
     };
   }
 
-  async deleteChat(chatId: string): Promise<void> {
-    const query = `
-    DELETE FROM Chats
-    WHERE chat_id = $1
-    RETURNING chat_id;
-  `;
+  async deleteChat(chatId: string): Promise<string> {
+    const result = await this.Drizzle.delete(Chats)
+      .where(eq(Chats.chat_id, chatId))
+      .returning({ chatId: Chats.chat_id });
 
-    const result = await this.databaseService.query(query, [chatId]);
-
-    if (result.rowCount === 0) {
+    if (result.length === 0) {
       throw new Error(`Chat with ID ${chatId} does not exist.`);
     }
 
-    return result;
+    return result[0].chatId;
   }
 
   async updateChatName({
@@ -108,39 +97,27 @@ export class ChatDatabaseService {
   }: {
     chatId: string;
     newChatName: string;
-  }): Promise<void> {
-    const query = `
-    UPDATE Chats
-    SET chat_name = $1
-    WHERE chat_id = $2
-    RETURNING chat_id, chat_name;
-  `;
+  }): Promise<{ chatId: string; chatName: string }> {
+    const result = await this.Drizzle.update(Chats)
+      .set({ chatName: newChatName })
+      .where(eq(Chats.chat_id, chatId))
+      .returning({ chatId: Chats.chat_id, chatName: Chats.chat_name });
 
-    const result = await this.databaseService.query(query, [
-      newChatName,
-      chatId,
-    ]);
-
-    if (result.rowCount === 0) {
+    if (result.length === 0) {
       throw new Error(`Chat with ID ${chatId} does not exist.`);
     }
 
-    return result;
+    return result[0];
   }
 
-  async getAllChats(): Promise<{ chat_id: string; chat_name: string }[]> {
-    const query = `
-    SELECT 
-        chat_id,
-        chat_name
-    FROM 
-        Chats
-    ORDER BY 
-        created_at DESC;
-  `;
+  async getAllChats(): Promise<{ chatId: string; chatName: string }[]> {
+    const result = await this.Drizzle.select({
+      chatId: Chats.chat_id,
+      chatName: Chats.chat_name,
+    })
+      .from(Chats)
+      .orderBy(sql`${Chats.created_at} DESC`);
 
-    const result = await this.databaseService.query(query);
-
-    return result.rows;
+    return result;
   }
 }

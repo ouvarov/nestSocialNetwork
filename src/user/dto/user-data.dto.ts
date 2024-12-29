@@ -6,24 +6,24 @@ import {
   IsArray,
 } from 'class-validator';
 
-export class UserDto {
+export class UserDataDto {
   @IsString()
   @IsNotEmpty()
-  userName: string;
+  user_name: string;
 
   @IsString()
   @IsUUID()
   @IsNotEmpty()
-  id: string;
+  user_id: string;
 
   @IsString()
-  imageUrl: string;
+  image_url: string;
 
   @IsArray()
-  following: string[];
+  following: string;
 
   @IsArray()
-  followers: string[];
+  followers: string;
 
   @IsString()
   description: string;

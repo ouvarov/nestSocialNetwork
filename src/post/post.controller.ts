@@ -14,11 +14,13 @@ import {
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { Request, Response } from 'express';
-import { JwtAuthGuard } from '../auth/auth.guard';
+import { JwtAuthGuard } from '@/auth/auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { CacheInterceptor } from '@nestjs/cache-manager';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('post')
+@ApiTags('Post')
 @UseGuards(JwtAuthGuard)
 export class PostController {
   constructor(
@@ -57,7 +59,6 @@ export class PostController {
     const token =
       await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
 
-    console.log(postId, 'postId');
     const result = await this.postService.like(postId, token);
 
     return res.json(result);
