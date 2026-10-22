@@ -54,7 +54,7 @@ const seed = async () => {
     throw new Error('Refusing to wipe a production database outside demo mode');
   }
 
-  const client = postgres(env.DATABASE_URL, { max: 1 });
+  const client = postgres(env.DATABASE_URL, { max: 1, onnotice: () => {} });
   const db = drizzle(client);
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, PASSWORD_SALT_ROUNDS);
 

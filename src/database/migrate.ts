@@ -9,7 +9,7 @@ const runMigrations = async () => {
   const { DATABASE_URL } = envSchema
     .pick({ DATABASE_URL: true })
     .parse(process.env);
-  const client = postgres(DATABASE_URL, { max: 1 });
+  const client = postgres(DATABASE_URL, { max: 1, onnotice: () => {} });
 
   try {
     await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
