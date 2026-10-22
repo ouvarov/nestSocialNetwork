@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, type AuthUser } from '@/auth/current-user.decorator';
 
 import { CreatePostDto } from './dto/create-post.dto';
+import { LikePostDto } from './dto/like-post.dto';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -26,17 +28,20 @@ export class PostController {
   }
 
   @Get('/getPosts/:id')
-  find(@Param('id') id: string) {
+  find(@Param('id', ParseUUIDPipe) id: string) {
     return this.postService.find(id);
   }
 
   @Put('/like')
-  like(@CurrentUser() user: AuthUser, @Body() { postId }: { postId: string }) {
+  like(@CurrentUser() user: AuthUser, @Body() { postId }: LikePostDto) {
     return this.postService.like(user.id, postId);
   }
 
   @Delete(':id')
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.postService.remove(user.id, id);
   }
 }

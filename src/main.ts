@@ -1,8 +1,13 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import * as cookieParser from 'cookie-parser';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+
+import { AppModule } from './app.module';
+import { REFRESH_COOKIE_NAME } from './auth/refresh-cookie';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import type { Env } from './config/env.schema';
 
 async function bootstrap() {
@@ -10,17 +15,30 @@ async function bootstrap() {
   const configService = app.get<ConfigService<Env, true>>(ConfigService);
 
   app.setGlobalPrefix('api');
-
+  app.enableShutdownHooks();
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cookieParser());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
 
-  const config = new DocumentBuilder()
-    .setTitle('Your API Title')
-    .setDescription('API description')
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Pulse API')
+    .setDescription('Social network API: auth, posts, likes, chats')
     .setVersion('1.0')
+    .addBearerAuth()
+    .addCookieAuth(REFRESH_COOKIE_NAME)
     .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup(
+    'docs',
+    app,
+    SwaggerModule.createDocument(app, swaggerConfig),
+  );
 
   app.enableCors({
     origin: configService.get('CORS_ORIGIN', { infer: true }),
@@ -29,9 +47,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  await app.listen(configService.get('PORT', { infer: true }), () => {
-    console.log('start');
-  });
+  const port = configService.get('PORT', { infer: true });
+  await app.listen(port);
+  Logger.log(`API listening on port ${port}`, 'Bootstrap');
 }
 
 void bootstrap();
