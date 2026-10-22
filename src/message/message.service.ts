@@ -1,12 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { CreateMessageDto } from './dto/create-message.dto';
 
 import { MessageDatabaseService } from '@/database/message-database.service';
 
+import { CreateMessageDto } from './dto/create-message.dto';
+
 @Injectable()
 export class MessageService {
-  constructor(private readonly messageDatabaseModule: MessageDatabaseService) {}
-  async create(createMessageDto: CreateMessageDto) {
-    return await this.messageDatabaseModule.createMessage(createMessageDto);
+  constructor(
+    private readonly messageDatabaseService: MessageDatabaseService,
+  ) {}
+
+  create(senderId: string, { chatId, content }: CreateMessageDto) {
+    return this.messageDatabaseService.createMessage({
+      chatId,
+      senderId,
+      content,
+    });
   }
 }

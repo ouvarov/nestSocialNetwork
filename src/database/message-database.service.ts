@@ -32,16 +32,6 @@ export class MessageDatabaseService {
         sentAt: Messages.sent_at,
       });
 
-    if (!message) {
-      throw new Error('Message creation failed');
-    }
-
-    return {
-      chat_id: message.chatId,
-      content: message.content,
-      message_id: message.messageId,
-      sender_id: message.senderId,
-      sent_at: message.sentAt,
-    };
+    return message;
   }
 }

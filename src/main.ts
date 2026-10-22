@@ -7,6 +7,7 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { REFRESH_COOKIE_NAME } from './auth/refresh-cookie';
+import { SocketIoAdapter } from './common/adapters/socket-io.adapter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import type { Env } from './config/env.schema';
 
@@ -16,6 +17,9 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
+  app.useWebSocketAdapter(
+    new SocketIoAdapter(app, configService.get('CORS_ORIGIN', { infer: true })),
+  );
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cookieParser());
   app.useGlobalPipes(

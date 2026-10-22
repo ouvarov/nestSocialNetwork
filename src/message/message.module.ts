@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
-import { MessageService } from './message.service';
-import { MessageGateway } from './message.gateway';
-import { MessageDatabaseService } from '@/database/message-database.service';
+
+import { AuthModule } from '@/auth/auth.module';
+import { ChatModule } from '@/chat/chat.module';
 import { DatabaseModule } from '@/database/database.module';
+import { MessageDatabaseService } from '@/database/message-database.service';
+
+import { MessageGateway } from './message.gateway';
+import { MessageService } from './message.service';
 
 @Module({
   providers: [MessageGateway, MessageService, MessageDatabaseService],
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule, ChatModule],
 })
 export class MessageModule {}

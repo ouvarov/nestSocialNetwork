@@ -7,6 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import { WsException } from '@nestjs/websockets';
+import type { Socket } from 'socket.io';
 
 import { getPostgresErrorCode } from '@/database/postgres-error';
 
@@ -37,6 +39,13 @@ const fromHttpException = (exception: HttpException): ErrorResponse => {
 
 const toErrorResponse = (exception: unknown): ErrorResponse => {
   if (exception instanceof HttpException) return fromHttpException(exception);
+
+  if (exception instanceof WsException) {
+    return {
+      status: HttpStatus.BAD_REQUEST,
+      body: { statusCode: HttpStatus.BAD_REQUEST, message: exception.message },
+    };
+  }
 
   const postgresError = POSTGRES_ERRORS[getPostgresErrorCode(exception) ?? ''];
 
@@ -72,6 +81,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(
         exception instanceof Error ? exception.stack : String(exception),
       );
+    }
+
+    if (host.getType() === 'ws') {
+      host
+        .switchToWs()
+        .getClient<Socket>()
+        .emit('exception', { status: 'error', ...body });
+      return;
     }
 
     this.httpAdapterHost.httpAdapter.reply(
