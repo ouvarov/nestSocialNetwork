@@ -1,20 +1,20 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { Env } from '@/config/env.schema';
 import * as postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { DatabaseProvider } from './database.provider';
 import { UserDatabaseOrmService } from '@/database/user-database.service';
 
 @Module({
   imports: [ConfigModule],
   providers: [
-    DatabaseProvider,
     UserDatabaseOrmService,
     {
       provide: 'DATABASE_POOL',
-      useFactory: (configService: ConfigService) => {
-        const connectionString =
-          configService.getOrThrow<string>('DATABASE_URL');
+      useFactory: (configService: ConfigService<Env, true>) => {
+        const connectionString = configService.get('DATABASE_URL', {
+          infer: true,
+        });
         return postgres(connectionString, { prepare: false });
       },
       inject: [ConfigService],
@@ -25,6 +25,6 @@ import { UserDatabaseOrmService } from '@/database/user-database.service';
       inject: ['DATABASE_POOL'],
     },
   ],
-  exports: [DatabaseProvider, UserDatabaseOrmService, 'DRIZZLE_ORM'],
+  exports: [UserDatabaseOrmService, 'DRIZZLE_ORM'],
 })
 export class DatabaseModule {}

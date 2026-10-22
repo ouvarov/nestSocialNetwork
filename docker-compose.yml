@@ -27,11 +27,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: nestjs_app
+    env_file: .env
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      DB_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-mydb}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-jwt-secret-key}
-      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-jwt-refresh-key}
+      DATABASE_URL: postgres://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-mydb}
       REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:

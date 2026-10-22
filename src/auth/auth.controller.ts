@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 
 import { ConfigService } from '@nestjs/config';
+import type { Env } from '@/config/env.schema';
 import { AuthService } from '@/auth/auth.service';
 import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
 import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
@@ -14,7 +15,7 @@ import { CreateUserPipe } from '@/auth/pipes/CreateUserPipe';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService<Env, true>,
   ) {}
 
   @ApiOperation({ summary: 'Create a new user' })
@@ -75,7 +76,7 @@ export class AuthController {
   async validateRefreshToken(@Req() req: Request, @Res() res: Response) {
     const result = await this.authService.validationRefreshToken(
       req.cookies[
-        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
       ],
     );
 

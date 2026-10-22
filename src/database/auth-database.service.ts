@@ -2,12 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { Users, type User } from '@/database/schemas/users.schema';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { DatabaseProvider } from '@/database/database.provider';
 
 @Injectable()
 export class AuthDatabaseService {
   constructor(
-    private readonly databaseService: DatabaseProvider,
     @Inject('DRIZZLE_ORM')
     private readonly Drizzle: ReturnType<typeof drizzle>,
   ) {}

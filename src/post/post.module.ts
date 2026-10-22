@@ -7,7 +7,6 @@ import { AuthService } from '@/auth/auth.service';
 import { UserService } from '@/user/user.service';
 import { CacheService } from '@/cache/cache.service';
 import { CacheDataModule } from '@/cache/cache.module';
-import { DatabaseProvider } from '@/database/database.provider';
 import { UserDatabaseOrmService } from '@/database/user-database.service';
 
 import { PostService } from './post.service';
@@ -22,7 +21,6 @@ import { PostDatabaseOrmService } from '@/database/post-database.service';
     PostService,
     AuthService,
     UserService,
-    DatabaseProvider,
     CacheService,
     UserDatabaseOrmService,
     AuthDatabaseService,

@@ -1,8 +1,6 @@
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { PostModule } from './post/post.module';
-import * as process from 'process';
-import * as Joi from 'joi';
 import { Module } from '@nestjs/common';
 import { CacheModule, CacheOptions } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -13,33 +11,23 @@ import { MessageModule } from './message/message.module';
 import { CacheDataModule } from './cache/cache.module';
 import { UploadModule } from './upload/upload.module';
 import { DatabaseModule } from './database/database.module';
+import { validateEnv, type Env } from './config/env.schema';
 
-const environment = process.env.NODE_ENV || 'development';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      envFilePath: [
-        `.env.${environment}`,
-        `.env.${environment}.local`,
-        '.env.test.local',
-      ],
       isGlobal: true,
-      validationSchema: Joi.object({
-        DB_URL: Joi.string().required(),
-        JWT_ACCESS_SECRET: Joi.string().required(),
-        REFRESH_TOKEN_SECRET: Joi.string().required(),
-        REDIS_HOST: Joi.string().required(),
-        REDIS_PORT: Joi.number().required(),
-      }),
+      envFilePath: '.env',
+      validate: validateEnv,
     }),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService): CacheOptions => ({
+      useFactory: (configService: ConfigService<Env, true>): CacheOptions => ({
         store: redisStore as unknown as CacheStoreFactory,
-        host: configService.get('REDIS_HOST'),
-        port: configService.get('REDIS_PORT'),
+        host: configService.get('REDIS_HOST', { infer: true }),
+        port: configService.get('REDIS_PORT', { infer: true }),
         max: 1000,
         ttl: 3600,
       }),
