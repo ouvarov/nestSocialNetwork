@@ -6,17 +6,14 @@ import {
   Param,
   Delete,
   Put,
-  UseGuards,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
-import { JwtAuthGuard } from '../auth/auth.guard';
 import { ApiTags } from '@nestjs/swagger';
 
 @Controller('chat')
 @ApiTags('Chat')
-@UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 

@@ -12,8 +12,11 @@ import { CacheDataModule } from './cache/cache.module';
 import { UploadModule } from './upload/upload.module';
 import { DatabaseModule } from './database/database.module';
 import { validateEnv, type Env } from './config/env.schema';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/auth.guard';
 
 @Module({
+  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

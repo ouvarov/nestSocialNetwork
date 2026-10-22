@@ -1,86 +1,42 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
-  Res,
-  UseGuards,
-  Req,
+  Get,
+  Param,
+  Post,
   Put,
-  UseInterceptors,
 } from '@nestjs/common';
-import { PostService } from './post.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
+import { CurrentUser, type AuthUser } from '@/auth/current-user.decorator';
+
 import { CreatePostDto } from './dto/create-post.dto';
-import { Request, Response } from 'express';
-import { JwtAuthGuard } from '@/auth/auth.guard';
-import { ConfigService } from '@nestjs/config';
-import type { Env } from '@/config/env.schema';
-import { CacheInterceptor } from '@nestjs/cache-manager';
-import { ApiTags } from '@nestjs/swagger';
+import { PostService } from './post.service';
 
 @Controller('post')
 @ApiTags('Post')
-@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class PostController {
-  constructor(
-    private readonly postService: PostService,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
+  constructor(private readonly postService: PostService) {}
 
   @Post('/create')
-  async create(
-    @Body() createPostDto: CreatePostDto,
-    @Res() res: Response,
-    @Req() req: Request,
-  ) {
-    const token =
-      await req.cookies[
-        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
-      ];
-    const result = await this.postService.create(createPostDto, token);
-
-    return res.json(result);
+  create(@CurrentUser() user: AuthUser, @Body() createPostDto: CreatePostDto) {
+    return this.postService.create(user.id, createPostDto);
   }
 
   @Get('/getPosts/:id')
-  @UseInterceptors(CacheInterceptor)
-  async find(@Param('id') id: string, @Res() res: Response) {
-    const result = await this.postService.find(id);
-
-    return res.json(result);
+  find(@Param('id') id: string) {
+    return this.postService.find(id);
   }
 
   @Put('/like')
-  async like(
-    @Body()
-    { postId }: { postId: string },
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    const token =
-      await req.cookies[
-        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
-      ];
-
-    const result = await this.postService.like(postId, token);
-
-    return res.json(result);
+  like(@CurrentUser() user: AuthUser, @Body() { postId }: { postId: string }) {
+    return this.postService.like(user.id, postId);
   }
 
   @Delete(':id')
-  async remove(
-    @Param('id') id: string,
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    const token =
-      await req.cookies[
-        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
-      ];
-    const result = await this.postService.remove(id, token);
-
-    return res.json(result);
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.postService.remove(user.id, id);
   }
 }

@@ -1,189 +1,264 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Response } from 'express';
-import { AuthService } from '../auth.service';
-import { AuthDatabaseService } from '../../database/auth-database.service';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { CreateAuthDto } from '../dto/create-auth.dto';
-import { UserResponseDto } from '../../user/dto/user-response.dto';
-import { HttpException, HttpStatus } from '@nestjs/common';
-import { UserService } from '../../user/user.service';
-import { plainToClass } from 'class-transformer';
+import { randomUUID } from 'node:crypto';
 
-jest.mock('@nestjs/jwt');
-const mockFn = jest.fn();
-const mockJwtService = {
-  sign: jest.fn((payload) => {
-    if (!payload) {
-      throw new Error('secretOrPrivateKey must have a value');
+import type { Env } from '@/config/env.schema';
+import type { AuthDatabaseService } from '@/database/auth-database.service';
+import type {
+  NewRefreshToken,
+  RefreshTokenDatabaseService,
+} from '@/database/refresh-token-database.service';
+import type { RefreshToken } from '@/database/schemas/refreshTokens.schema';
+import type { User } from '@/database/schemas/users.schema';
+import type { UserService } from '@/user/user.service';
+
+import { AuthService } from '../auth.service';
+
+const ACCESS_SECRET = 'a'.repeat(32);
+const REFRESH_SECRET = 'r'.repeat(32);
+const PASSWORD = 'correct-horse-battery';
+
+const createUserStore = () => {
+  const users = new Map<string, User>();
+
+  const userService = {
+    findOneByEmail: (email: string) =>
+      Promise.resolve(
+        [...users.values()].find((user) => user.email === email) ?? null,
+      ),
+    findOneById: (id: string) => Promise.resolve(users.get(id) ?? null),
+  };
+
+  const authDatabaseService = {
+    createUser: ({
+      userName,
+      email,
+      password,
+    }: {
+      userName: string;
+      email: string;
+      password: string;
+    }) => {
+      if ([...users.values()].some((user) => user.email === email)) {
+        return Promise.reject(Object.assign(new Error(), { code: '23505' }));
+      }
+
+      const user: User = {
+        user_id: randomUUID(),
+        user_name: userName,
+        email,
+        password,
+        image_url: null,
+        description: '',
+        created: new Date(),
+      };
+      users.set(user.user_id, user);
+      return Promise.resolve(user);
+    },
+  };
+
+  return { userService, authDatabaseService };
+};
+
+const createRefreshTokenStore = () => {
+  const tokens = new Map<string, RefreshToken>();
+
+  const toRecord = (token: NewRefreshToken): RefreshToken => ({
+    token_id: token.tokenId,
+    user_id: token.userId,
+    family_id: token.familyId,
+    expires_at: token.expiresAt,
+    revoked_at: null,
+    replaced_by: null,
+    created_at: new Date(),
+  });
+
+  const revokeWhere = (matches: (token: RefreshToken) => boolean) => {
+    for (const token of tokens.values()) {
+      if (matches(token) && !token.revoked_at) token.revoked_at = new Date();
     }
-    return 'access_token';
-  }),
+  };
+
+  const store = {
+    create: (token: NewRefreshToken) => {
+      tokens.set(token.tokenId, toRecord(token));
+      return Promise.resolve();
+    },
+    findById: (tokenId: string) => Promise.resolve(tokens.get(tokenId) ?? null),
+    rotate: (currentTokenId: string, nextToken: NewRefreshToken) => {
+      const current = tokens.get(currentTokenId);
+      if (!current || current.revoked_at) return Promise.resolve(false);
+
+      current.revoked_at = new Date();
+      current.replaced_by = nextToken.tokenId;
+      tokens.set(nextToken.tokenId, toRecord(nextToken));
+      return Promise.resolve(true);
+    },
+    revoke: (tokenId: string) => {
+      revokeWhere((token) => token.token_id === tokenId);
+      return Promise.resolve();
+    },
+    revokeFamily: (familyId: string) => {
+      revokeWhere((token) => token.family_id === familyId);
+      return Promise.resolve();
+    },
+  };
+
+  return { store, tokens };
+};
+
+const createAuthService = () => {
+  const { userService, authDatabaseService } = createUserStore();
+  const { store, tokens } = createRefreshTokenStore();
+  const jwtService = new JwtService({
+    secret: ACCESS_SECRET,
+    signOptions: { expiresIn: '15m' },
+  });
+  const configService = {
+    get: (key: keyof Env) =>
+      key === 'REFRESH_TOKEN_SECRET' ? REFRESH_SECRET : undefined,
+  };
+
+  const authService = new AuthService(
+    jwtService,
+    userService as unknown as UserService,
+    authDatabaseService as unknown as AuthDatabaseService,
+    store as unknown as RefreshTokenDatabaseService,
+    configService as unknown as ConfigService<Env, true>,
+  );
+
+  return { authService, jwtService, tokens };
 };
 
 describe('AuthService', () => {
-  let authService: AuthService;
-  let authDatabaseService: AuthDatabaseService;
-  let jwtService: JwtService;
-  let res: Response;
-
-  beforeEach(async () => {
-    const mockUserService = {
-      findUserByEmail: jest.fn(),
-      createUser: jest.fn(),
-    };
-    const mockDatabaseService = {
-      findUserByEmail: jest.fn(),
-      createUser: jest.fn(),
-    };
-    const mockEnv: Record<string, string> = {
-      JWT_ACCESS_SECRET: 'jwt-access-secret-key',
-      REFRESH_TOKEN_SECRET: 'jwt-refresh-secret-key',
-    };
-    const mockConfigService = {
-      get: jest.fn((key: string) => mockEnv[key]),
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        {
-          provide: ConfigService,
-          useValue: mockConfigService,
-        },
-        {
-          provide: JwtService,
-          useValue: mockJwtService,
-        },
-        {
-          provide: UserService,
-          useValue: mockUserService,
-        },
-        {
-          provide: AuthDatabaseService,
-          useValue: mockDatabaseService,
-        },
-      ],
-    }).compile();
-
-    authService = module.get<AuthService>(AuthService);
-    authDatabaseService = module.get<AuthDatabaseService>(AuthDatabaseService);
-    jwtService = module.get<JwtService>(JwtService);
-
-    res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
-  });
-
-  it('should create a user and return access token and user data', async () => {
-    const createUserDto: CreateAuthDto = {
-      email: 'test@example.com',
-      password: 'password',
-      userName: 'testuser',
-      created: new Date(),
-    };
-
-    const user = {
-      user_id: 1,
-      email: 'test@example.com',
-      password: 'hashedpassword',
-      user_name: 'testuser',
-      created: new Date(),
-    };
-
-    authDatabaseService.createUser = jest.fn().mockResolvedValue(user);
-
-    const result = await authService.create(createUserDto, res);
-
-    const userResponse = plainToClass(UserResponseDto, result.userData);
-
-    expect(userResponse).toBeInstanceOf(UserResponseDto);
-    expect(result.access_token).toBe('access_token');
-
-    const token =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImlhdCI6MTczMjk3NjEwMCwiZXhwIjoxNzM1NTY4MTAwfQ.XEH0IXKWP6OGqPGE-_kKFZin1AeUWfEin41RRHQ37JQ';
-
-    mockFn('jwt-refresh-secret-key', token, {
-      httpOnly: true,
-      secure: true,
-      maxAge: 2592000000,
+  const registerAda = (authService: AuthService) =>
+    authService.register({
+      userName: 'Ada Lovelace',
+      email: 'ada@example.com',
+      password: PASSWORD,
     });
 
-    expect(mockFn).toHaveBeenCalledWith(
-      'jwt-refresh-secret-key',
-      token,
-      expect.objectContaining({
-        httpOnly: true,
-        secure: true,
-        maxAge: 2592000000,
-      }),
-    );
-  });
+  describe('register', () => {
+    it('returns an access token for the new user and stores a refresh token', async () => {
+      const { authService, jwtService, tokens } = createAuthService();
 
-  it('should throw exception if user creation fails', async () => {
-    const createUserDto: CreateAuthDto = {
-      email: 'test@example.com',
-      password: 'password',
-      userName: 'testuser',
-      created: new Date(),
-    };
+      const session = await registerAda(authService);
+      const payload = await jwtService.verifyAsync<{
+        sub: string;
+        typ: string;
+      }>(session.accessToken);
 
-    authDatabaseService.createUser = jest
-      .fn()
-      .mockRejectedValue(
-        new HttpException(
-          'User creation failed',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        ),
+      expect(payload).toMatchObject({ sub: session.user.id, typ: 'access' });
+      expect(tokens.size).toBe(1);
+      expect(session.user).not.toHaveProperty('password');
+    });
+
+    it('rejects an email that is already registered with 409', async () => {
+      const { authService } = createAuthService();
+      await registerAda(authService);
+
+      await expect(registerAda(authService)).rejects.toBeInstanceOf(
+        ConflictException,
       );
-
-    await expect(authService.create(createUserDto, res)).rejects.toThrowError(
-      HttpException,
-    );
+    });
   });
 
-  it('should generate access token correctly', () => {
-    const userId = 'user-1';
+  describe('login', () => {
+    it('gives the same 401 for an unknown email and a wrong password', async () => {
+      const { authService } = createAuthService();
+      await registerAda(authService);
 
-    const signMock = jest
-      .spyOn(jwtService, 'sign')
-      .mockReturnValue('access_token');
-    signMock.mockClear();
+      const unknownEmail = authService.login({
+        email: 'nobody@example.com',
+        password: PASSWORD,
+      });
+      const wrongPassword = authService.login({
+        email: 'ada@example.com',
+        password: 'wrong-password',
+      });
 
-    const token = authService.generateAccessToken(userId);
-
-    expect(token).toBe('access_token');
-    expect(signMock).toHaveBeenCalledTimes(1);
-    expect(signMock).toHaveBeenCalledWith({ sub: userId });
-  });
-
-  it('should generate refresh token correctly', () => {
-    const userId = 'user-1';
-    const token = authService.generateRefreshToken(userId);
-    expect(typeof token).toBe('string');
-
-    expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: userId });
-  });
-
-  it('should return data for validation of refresh token', async () => {
-    const token = 'mockRefreshToken';
-    authService.validationRefreshToken = jest.fn().mockResolvedValue({
-      access_token: 'access_token',
-      userData: new UserResponseDto(),
+      await expect(unknownEmail).rejects.toThrow(
+        new UnauthorizedException('Invalid credentials'),
+      );
+      await expect(wrongPassword).rejects.toThrow(
+        new UnauthorizedException('Invalid credentials'),
+      );
     });
 
-    const result = await authService.validationRefreshToken(token);
+    it('starts a session for valid credentials', async () => {
+      const { authService } = createAuthService();
+      const { user } = await registerAda(authService);
 
-    expect(result.access_token).toBe('access_token');
-    expect(result.userData).toBeInstanceOf(UserResponseDto);
+      const session = await authService.login({
+        email: 'ada@example.com',
+        password: PASSWORD,
+      });
+
+      expect(session.user.id).toBe(user.id);
+    });
   });
 
-  it('should throw exception if refresh token validation fails', async () => {
-    const token = 'invalidToken';
-    authService.validationRefreshToken = jest
-      .fn()
-      .mockRejectedValue(new Error('Invalid token'));
+  describe('refresh', () => {
+    it('rotates the refresh token and the new one keeps working', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
 
-    await expect(
-      authService.validationRefreshToken(token),
-    ).rejects.toThrowError(Error);
+      const rotated = await authService.refresh(refreshToken);
+      const rotatedAgain = await authService.refresh(rotated.refreshToken);
+
+      expect(rotated.refreshToken).not.toBe(refreshToken);
+      expect(rotatedAgain.user.id).toBe(rotated.user.id);
+    });
+
+    it('treats a reused refresh token as theft and revokes the whole family', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken: stolenToken } = await registerAda(authService);
+      const { refreshToken: currentToken } =
+        await authService.refresh(stolenToken);
+
+      await expect(authService.refresh(stolenToken)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      await expect(authService.refresh(currentToken)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects an access token used as a refresh token', async () => {
+      const { authService } = createAuthService();
+      const { accessToken } = await registerAda(authService);
+
+      await expect(authService.refresh(accessToken)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects a missing refresh token', async () => {
+      const { authService } = createAuthService();
+
+      await expect(authService.refresh(undefined)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('logout', () => {
+    it('revokes the refresh token', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
+
+      await authService.logout(refreshToken);
+
+      await expect(authService.refresh(refreshToken)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('does not fail without a refresh token', async () => {
+      const { authService } = createAuthService();
+
+      await expect(authService.logout(undefined)).resolves.toBeUndefined();
+    });
   });
 });

@@ -1,163 +1,207 @@
 import {
-  HttpException,
-  HttpStatus,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '@/config/env.schema';
-
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { Response } from 'express';
-import * as jwt from 'jsonwebtoken';
 import { plainToClass } from 'class-transformer';
+import { randomUUID } from 'node:crypto';
 
-import { UserDto } from '@/user/dto/user.dto';
-import { UserService } from '@/user/user.service';
-import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
+import type { Env } from '@/config/env.schema';
 import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
-import { UserResponseDto } from '@/user/dto/user-response.dto';
+import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
 import { AuthDatabaseService } from '@/database/auth-database.service';
 import { getPostgresErrorCode } from '@/database/postgres-error';
+import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
+import type { User } from '@/database/schemas/users.schema';
+import { UserResponseDto } from '@/user/dto/user-response.dto';
+import { UserService } from '@/user/user.service';
+
+import { REFRESH_TOKEN_TTL_MS } from './refresh-cookie';
+
+type AuthSession = {
+  accessToken: string;
+  refreshToken: string;
+  user: UserResponseDto;
+};
+
+type RefreshTokenPayload = { sub: string; jti: string; typ: string };
+
+const PASSWORD_HASH_ROUNDS = 12;
+const UNIQUE_VIOLATION = '23505';
+const INVALID_CREDENTIALS = 'Invalid credentials';
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
+  'timing-safe-comparison-for-unknown-emails',
+  PASSWORD_HASH_ROUNDS,
+);
+
+const toUserResponse = (user: User) =>
+  plainToClass(UserResponseDto, user, { excludeExtraneousValues: true });
 
 @Injectable()
 export class AuthService {
+  private readonly refreshTokenSecret: string;
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService<Env, true>,
-    private readonly authDatabaseOrmService: AuthDatabaseService,
-  ) {}
-
-  private readonly refreshTokenSecret = this.configService.get(
-    'REFRESH_TOKEN_SECRET',
-    { infer: true },
-  );
-
-  generateAccessToken(userId: string): string {
-    const payload = { sub: userId };
-    return this.jwtService.sign(payload);
+    private readonly authDatabaseService: AuthDatabaseService,
+    private readonly refreshTokenDatabaseService: RefreshTokenDatabaseService,
+    configService: ConfigService<Env, true>,
+  ) {
+    this.refreshTokenSecret = configService.get('REFRESH_TOKEN_SECRET', {
+      infer: true,
+    });
   }
 
-  generateRefreshToken(userId: string): string {
-    const payload = { sub: userId };
-    return jwt.sign(payload, this.refreshTokenSecret, { expiresIn: '30d' });
+  async register({
+    userName,
+    email,
+    password,
+  }: CreateAuthDto): Promise<AuthSession> {
+    const passwordHash = await bcrypt.hash(password, PASSWORD_HASH_ROUNDS);
+
+    try {
+      const user = await this.authDatabaseService.createUser({
+        userName,
+        email,
+        password: passwordHash,
+      });
+
+      return await this.startSession(user);
+    } catch (error) {
+      if (getPostgresErrorCode(error) === UNIQUE_VIOLATION) {
+        throw new ConflictException('Email is already registered');
+      }
+      throw error;
+    }
   }
 
-  async validationRefreshToken(token: string) {
-    const payload = jwt.verify(token, this.refreshTokenSecret);
+  async login({ email, password }: LoginAuthDto): Promise<AuthSession> {
+    const user = await this.userService.findOneByEmail(email);
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user?.password ?? DUMMY_PASSWORD_HASH,
+    );
 
-    if (typeof payload === 'string' || !payload.sub) {
+    if (!user || !isPasswordValid) {
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+
+    return this.startSession(user);
+  }
+
+  async refresh(refreshToken: string | undefined): Promise<AuthSession> {
+    const { jti } = await this.verifyRefreshToken(refreshToken);
+    const storedToken = await this.refreshTokenDatabaseService.findById(jti);
+
+    if (!storedToken) throw new UnauthorizedException();
+
+    if (storedToken.revoked_at) {
+      await this.refreshTokenDatabaseService.revokeFamily(
+        storedToken.family_id,
+      );
       throw new UnauthorizedException();
     }
 
-    const user = await this.userService.findOneById(payload.sub);
-
-    if (!user) {
+    if (storedToken.expires_at.getTime() <= Date.now()) {
       throw new UnauthorizedException();
     }
 
-    const responseUserData = plainToClass(
-      UserResponseDto,
-      { ...user, id: user.user_id.toString() },
+    const user = await this.userService.findOneById(storedToken.user_id);
+
+    if (!user) throw new UnauthorizedException();
+
+    const nextToken = await this.signRefreshToken(
+      user.user_id,
+      storedToken.family_id,
+    );
+    const isRotated = await this.refreshTokenDatabaseService.rotate(
+      storedToken.token_id,
+      nextToken.record,
+    );
+
+    if (!isRotated) {
+      await this.refreshTokenDatabaseService.revokeFamily(
+        storedToken.family_id,
+      );
+      throw new UnauthorizedException();
+    }
+
+    return {
+      accessToken: await this.signAccessToken(user.user_id),
+      refreshToken: nextToken.token,
+      user: toUserResponse(user),
+    };
+  }
+
+  async logout(refreshToken: string | undefined): Promise<void> {
+    const payload = await this.verifyRefreshToken(refreshToken).catch(
+      () => null,
+    );
+
+    if (payload) await this.refreshTokenDatabaseService.revoke(payload.jti);
+  }
+
+  private async startSession(user: User): Promise<AuthSession> {
+    const refreshToken = await this.signRefreshToken(
+      user.user_id,
+      randomUUID(),
+    );
+    await this.refreshTokenDatabaseService.create(refreshToken.record);
+
+    return {
+      accessToken: await this.signAccessToken(user.user_id),
+      refreshToken: refreshToken.token,
+      user: toUserResponse(user),
+    };
+  }
+
+  private signAccessToken(userId: string): Promise<string> {
+    return this.jwtService.signAsync({ sub: userId, typ: 'access' });
+  }
+
+  private async signRefreshToken(userId: string, familyId: string) {
+    const tokenId = randomUUID();
+    const token = await this.jwtService.signAsync(
+      { sub: userId, jti: tokenId, typ: 'refresh' },
       {
-        excludeExtraneousValues: true,
+        secret: this.refreshTokenSecret,
+        expiresIn: REFRESH_TOKEN_TTL_MS / 1000,
       },
     );
 
-    const data = {
-      access_token: this.generateAccessToken(responseUserData.id),
-      userData: responseUserData,
+    return {
+      token,
+      record: {
+        tokenId,
+        userId,
+        familyId,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
     };
-
-    return data;
   }
 
-  async create(
-    createUserDto: CreateAuthDto,
-    res: Response,
-  ): Promise<{ access_token: string; userData: UserDto }> {
-    const { userName, email, password } = createUserDto;
+  private async verifyRefreshToken(
+    token: string | undefined,
+  ): Promise<RefreshTokenPayload> {
+    if (!token) throw new UnauthorizedException();
 
     try {
-      const getUser = await this.authDatabaseOrmService.createUser({
-        userName,
-        email,
-        password,
-      });
-
-      const responseUserData = plainToClass(UserResponseDto, getUser, {
-        excludeExtraneousValues: true,
-      });
-
-      const refreshToken = this.generateRefreshToken(responseUserData.id);
-
-      res.cookie(this.refreshTokenSecret, refreshToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      });
-
-      const data = {
-        access_token: this.generateAccessToken(responseUserData.id),
-        userData: { ...responseUserData },
-      };
-
-      return data;
-    } catch (error) {
-      console.log(error);
-      if (getPostgresErrorCode(error) === '23505') {
-        throw new HttpException(
-          `A user with the email ${email} already exists.`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      throw new HttpException(
-        'An unexpected error occurred. Please try again later.',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+      const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        token,
+        { secret: this.refreshTokenSecret },
       );
+
+      if (payload.typ !== 'refresh') throw new UnauthorizedException();
+
+      return payload;
+    } catch {
+      throw new UnauthorizedException();
     }
-  }
-
-  logout(res: Response) {
-    res.clearCookie(this.refreshTokenSecret);
-
-    return null;
-  }
-
-  async login(
-    loginAuthDto: LoginAuthDto,
-    res: Response,
-  ): Promise<{ access_token: string; userData: UserResponseDto }> {
-    const { email, password } = loginAuthDto;
-
-    const user = await this.userService.findOneByEmail(email);
-    const isPasswordEquals =
-      user !== null && (await bcrypt.compare(password, user.password));
-
-    if (!user || !isPasswordEquals) {
-      throw new HttpException('bad credentials', HttpStatus.FORBIDDEN);
-    }
-
-    const responseUserData = plainToClass(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
-
-    const refreshToken = this.generateRefreshToken(responseUserData.id);
-
-    res.cookie(this.refreshTokenSecret, refreshToken, {
-      httpOnly: true,
-      secure: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    });
-
-    const data = {
-      access_token: this.generateAccessToken(responseUserData.id),
-      userData: responseUserData,
-    };
-
-    return data;
   }
 }
+
+export type { AuthSession };
