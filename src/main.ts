@@ -2,9 +2,12 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from './config/env.schema';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get<ConfigService<Env, true>>(ConfigService);
 
   app.setGlobalPrefix('api');
 
@@ -20,13 +23,13 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   app.enableCors({
-    origin: 'http://localhost:3001',
+    origin: configService.get('CORS_ORIGIN', { infer: true }),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Authorization',
     credentials: true,
   });
 
-  await app.listen(5000, () => {
+  await app.listen(configService.get('PORT', { infer: true }), () => {
     console.log('start');
   });
 }

@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { ConfigService } from '@nestjs/config';
+import type { Env } from '@/config/env.schema';
 import { extname } from 'path';
 
 @Injectable()
 export class UploadService {
   private readonly supabaseClient: SupabaseClient;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private readonly configService: ConfigService<Env, true>) {
     this.supabaseClient = createClient(
-      configService.getOrThrow<string>('SUPABASE_URL'),
-      configService.getOrThrow<string>('SUPABASE_ANON_KEY'),
+      configService.get('SUPABASE_URL', { infer: true }),
+      configService.get('SUPABASE_ANON_KEY', { infer: true }),
     );
   }
 

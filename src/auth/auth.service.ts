@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import type { Env } from '@/config/env.schema';
 
 import * as bcrypt from 'bcryptjs';
 import { Response } from 'express';
@@ -25,12 +26,13 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService<Env, true>,
     private readonly authDatabaseOrmService: AuthDatabaseService,
   ) {}
 
-  private readonly refreshTokenSecret = this.configService.getOrThrow<string>(
+  private readonly refreshTokenSecret = this.configService.get(
     'REFRESH_TOKEN_SECRET',
+    { infer: true },
   );
 
   generateAccessToken(userId: string): string {

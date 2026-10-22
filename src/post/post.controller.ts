@@ -16,6 +16,7 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '@/auth/auth.guard';
 import { ConfigService } from '@nestjs/config';
+import type { Env } from '@/config/env.schema';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -25,7 +26,7 @@ import { ApiTags } from '@nestjs/swagger';
 export class PostController {
   constructor(
     private readonly postService: PostService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService<Env, true>,
   ) {}
 
   @Post('/create')
@@ -36,7 +37,7 @@ export class PostController {
   ) {
     const token =
       await req.cookies[
-        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
       ];
     const result = await this.postService.create(createPostDto, token);
 
@@ -60,7 +61,7 @@ export class PostController {
   ) {
     const token =
       await req.cookies[
-        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
       ];
 
     const result = await this.postService.like(postId, token);
@@ -76,7 +77,7 @@ export class PostController {
   ) {
     const token =
       await req.cookies[
-        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
       ];
     const result = await this.postService.remove(id, token);
 

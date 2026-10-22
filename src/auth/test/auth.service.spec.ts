@@ -42,7 +42,6 @@ describe('AuthService', () => {
     };
     const mockConfigService = {
       get: jest.fn((key: string) => mockEnv[key]),
-      getOrThrow: jest.fn((key: string) => mockEnv[key]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
