@@ -1,41 +1,112 @@
+import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import {
-  WebSocketGateway,
-  SubscribeMessage,
-  MessageBody,
   ConnectedSocket,
+  MessageBody,
+  type OnGatewayConnection,
+  SubscribeMessage,
+  WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { MessageService } from './message.service';
+import type { Namespace, Socket } from 'socket.io';
+
+import type { AuthUser } from '@/auth/current-user.decorator';
+import { getSocketUser, setSocketUser } from '@/auth/socket-user';
+import { ChatService } from '@/chat/chat.service';
+import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
+
+import { ChatRoomDto } from './dto/chat-room.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
-import { Public } from '@/auth/public.decorator';
+import { MessageService } from './message.service';
 
-@Public()
-@WebSocketGateway(5001, {
-  cors: {
-    origin: ['http://localhost:3001', '*'],
-  },
-})
-export class MessageGateway {
+type AccessTokenPayload = { sub: string; typ: string };
+
+const chatRoom = (chatId: string) => `chat:${chatId}`;
+
+@UseFilters(AllExceptionsFilter)
+@UsePipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+)
+@WebSocketGateway({ namespace: '/chat' })
+export class MessageGateway implements OnGatewayConnection {
   @WebSocketServer()
-  server: Server;
+  server: Namespace;
 
-  constructor(private readonly messageService: MessageService) {}
+  constructor(
+    private readonly messageService: MessageService,
+    private readonly chatService: ChatService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async handleConnection(client: Socket) {
+    const user = await this.authenticate(client);
+
+    if (!user) {
+      client.emit('exception', { status: 'error', message: 'Unauthorized' });
+      client.disconnect(true);
+      return;
+    }
+
+    setSocketUser(client, user);
+  }
 
   @SubscribeMessage('joinChat')
-  async handleJoinChat(
-    @MessageBody('chatId') chatId: string,
+  async joinChat(
     @ConnectedSocket() client: Socket,
+    @MessageBody() { chatId }: ChatRoomDto,
   ) {
-    await client.join(chatId);
+    await this.chatService.assertMember(getSocketUser(client).id, chatId);
+    await client.join(chatRoom(chatId));
+
+    return { chatId };
+  }
+
+  @SubscribeMessage('leaveChat')
+  async leaveChat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() { chatId }: ChatRoomDto,
+  ) {
+    await client.leave(chatRoom(chatId));
+
+    return { chatId };
   }
 
   @SubscribeMessage('createMessage')
-  async create(@MessageBody() createMessageDto: CreateMessageDto) {
-    const newMessage = await this.messageService.create(createMessageDto);
+  async createMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() createMessageDto: CreateMessageDto,
+  ) {
+    const { id: senderId } = getSocketUser(client);
+    await this.chatService.assertMember(senderId, createMessageDto.chatId);
 
-    this.server.to(createMessageDto.chatId).emit('newMessage', newMessage);
+    const message = await this.messageService.create(
+      senderId,
+      createMessageDto,
+    );
+    this.server
+      .to(chatRoom(createMessageDto.chatId))
+      .emit('newMessage', message);
 
-    return newMessage;
+    return message;
+  }
+
+  private async authenticate(client: Socket): Promise<AuthUser | null> {
+    const auth = client.handshake.auth as Record<string, unknown>;
+    const token = auth.token;
+
+    if (typeof token !== 'string') return null;
+
+    try {
+      const payload =
+        await this.jwtService.verifyAsync<AccessTokenPayload>(token);
+
+      return payload.typ === 'access' ? { id: payload.sub } : null;
+    } catch {
+      return null;
+    }
   }
 }

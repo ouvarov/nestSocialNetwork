@@ -3,12 +3,13 @@ import { CacheModule, CacheOptions } from '@nestjs/cache-manager';
 import { CacheStoreFactory } from '@nestjs/common/cache';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import * as redisStore from 'cache-manager-redis-store';
 
 import { JwtAuthGuard } from './auth/auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { CacheDataModule } from './cache/cache.module';
+import { AppThrottlerGuard } from './common/guards/throttler.guard';
 import { ChatModule } from './chat/chat.module';
 import { validateEnv, type Env } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
@@ -21,7 +22,7 @@ const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
 
 @Module({
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
   imports: [

@@ -61,7 +61,7 @@ export class ChatService {
     return chat;
   }
 
-  private async assertMember(userId: string, chatId: string): Promise<void> {
+  async assertMember(userId: string, chatId: string): Promise<void> {
     const isMember = await this.chatDatabaseService.isMember(chatId, userId);
 
     if (!isMember) throw new NotFoundException('Chat not found');
