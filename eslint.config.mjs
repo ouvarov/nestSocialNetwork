@@ -12,7 +12,10 @@ export default tseslint.config(
   },
   {
     files: ['**/*.ts'],
-    extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
+    extends: [
+      js.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
+    ],
     languageOptions: {
       globals: { ...globals.node, ...globals.jest },
       parserOptions: {
