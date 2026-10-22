@@ -1,10 +1,4 @@
-import {
-  IsString,
-  IsEmail,
-  IsNotEmpty,
-  IsUUID,
-  IsArray,
-} from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class UserDto {
   @IsString()
@@ -18,12 +12,6 @@ export class UserDto {
 
   @IsString()
   imageUrl: string;
-
-  @IsArray()
-  following: string[];
-
-  @IsArray()
-  followers: string[];
 
   @IsString()
   description: string;
