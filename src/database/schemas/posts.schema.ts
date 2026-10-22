@@ -8,7 +8,7 @@ const Posts = pgTable(
     owner_id: uuid('owner_id')
       .notNull()
       .references(() => Users.user_id, { onDelete: 'cascade' }),
-    image_url: text('image_url').notNull(),
+    image_url: text('image_url'),
     text: text('text').notNull(),
     created: timestamp('created', { withTimezone: true })
       .notNull()

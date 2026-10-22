@@ -15,8 +15,10 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import type { Env } from '@/config/env.schema';
@@ -33,6 +35,8 @@ import {
   refreshCookieOptions,
 } from './refresh-cookie';
 
+const CREDENTIALS_RATE_LIMIT = { default: { ttl: 60_000, limit: 5 } };
+
 @ApiTags('Auth')
 @Public()
 @Controller('auth')
@@ -48,7 +52,9 @@ export class AuthController {
   }
 
   @Post('register')
+  @Throttle(CREDENTIALS_RATE_LIMIT)
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiTooManyRequestsResponse()
   @ApiConflictResponse({ description: 'Email is already registered' })
   async register(
     @Body() createAuthDto: CreateAuthDto,
@@ -60,8 +66,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle(CREDENTIALS_RATE_LIMIT)
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
+  @ApiTooManyRequestsResponse()
   async login(
     @Body() loginAuthDto: LoginAuthDto,
     @Res({ passthrough: true }) response: Response,

@@ -1,28 +1,36 @@
-import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module';
-import { PostModule } from './post/post.module';
 import { Module } from '@nestjs/common';
 import { CacheModule, CacheOptions } from '@nestjs/cache-manager';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import * as redisStore from 'cache-manager-redis-store';
 import { CacheStoreFactory } from '@nestjs/common/cache';
-import { ChatModule } from './chat/chat.module';
-import { MessageModule } from './message/message.module';
-import { CacheDataModule } from './cache/cache.module';
-import { UploadModule } from './upload/upload.module';
-import { DatabaseModule } from './database/database.module';
-import { validateEnv, type Env } from './config/env.schema';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import * as redisStore from 'cache-manager-redis-store';
+
 import { JwtAuthGuard } from './auth/auth.guard';
+import { AuthModule } from './auth/auth.module';
+import { CacheDataModule } from './cache/cache.module';
+import { ChatModule } from './chat/chat.module';
+import { validateEnv, type Env } from './config/env.schema';
+import { DatabaseModule } from './database/database.module';
+import { MessageModule } from './message/message.module';
+import { PostModule } from './post/post.module';
+import { UploadModule } from './upload/upload.module';
+import { UserModule } from './user/user.module';
+
+const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
 
 @Module({
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
       validate: validateEnv,
     }),
+    ThrottlerModule.forRoot([DEFAULT_RATE_LIMIT]),
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],

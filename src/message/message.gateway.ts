@@ -28,7 +28,6 @@ export class MessageGateway {
     @ConnectedSocket() client: Socket,
   ) {
     await client.join(chatId);
-    console.log(`Client ${client.id} joined chat room: ${chatId}`);
   }
 
   @SubscribeMessage('createMessage')

@@ -6,6 +6,7 @@ import {
   Param,
   Delete,
   Put,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
@@ -19,7 +20,6 @@ export class ChatController {
 
   @Post('/create')
   create(@Body() createChatDto: CreateChatDto) {
-    console.log(createChatDto.userIds);
     return this.chatService.create(createChatDto.userIds);
   }
 
@@ -29,7 +29,7 @@ export class ChatController {
   }
 
   @Get('/find/:id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.chatService.findOne(id);
   }
 
@@ -39,7 +39,7 @@ export class ChatController {
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) {
+  delete(@Param('id', ParseUUIDPipe) id: string) {
     return this.chatService.deleteChat(id);
   }
 }

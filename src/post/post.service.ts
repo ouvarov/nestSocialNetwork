@@ -44,8 +44,6 @@ export class PostService {
     const cacheKey = `post:${id}`;
     let findAllPosts = await this.cacheService.getCache<PostRows>(cacheKey);
 
-    console.log(findAllPosts, cacheKey);
-
     if (!findAllPosts) {
       findAllPosts = await this.postOrmDatabaseService.allPosts(id);
       await this.cacheService.setCache(cacheKey, findAllPosts);

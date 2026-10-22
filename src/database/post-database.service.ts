@@ -13,7 +13,7 @@ export class PostDatabaseOrmService {
 
   async createPost({
     userId,
-    imageUrl = '',
+    imageUrl,
     text,
   }: {
     userId: string;
@@ -23,7 +23,7 @@ export class PostDatabaseOrmService {
     const posts = await this.Drizzle.insert(Posts)
       .values({
         owner_id: userId,
-        image_url: imageUrl,
+        image_url: imageUrl ?? null,
         text: text,
       })
       .returning()
@@ -49,7 +49,6 @@ export class PostDatabaseOrmService {
         .where(and(eq(Likes.post_id, postId), eq(Likes.user_id, userId)))
         .execute();
     } else {
-      console.log(existingLike, 'existingLike');
       await this.Drizzle.insert(Likes)
         .values({
           post_id: postId,

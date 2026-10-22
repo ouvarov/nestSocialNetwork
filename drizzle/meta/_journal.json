@@ -15,6 +15,13 @@
       "when": 1792690303767,
       "tag": "0001_refresh_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792691519366,
+      "tag": "0002_nullable_post_image",
+      "breakpoints": true
     }
   ]
 }
