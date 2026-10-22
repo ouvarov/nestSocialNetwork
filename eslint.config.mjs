@@ -42,5 +42,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'warn',
     },
   },
+  {
+    files: ['src/database/migrate.ts', 'src/database/seed.ts'],
+    rules: { 'no-console': 'off' },
+  },
   prettier,
 );

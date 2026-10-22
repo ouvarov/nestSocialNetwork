@@ -10,12 +10,6 @@ export class UserResponseDto {
   @Expose({ name: 'image_url' })
   imageUrl: string;
 
-  @Expose({ name: 'following' })
-  following: string[];
-
-  @Expose({ name: 'followers' })
-  followers: string[];
-
   @Expose({ name: 'description' })
   description: string;
 
