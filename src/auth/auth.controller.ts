@@ -1,140 +1,115 @@
-import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
-
-import { Response, Request } from 'express';
-
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  ApiConflictResponse,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+
 import type { Env } from '@/config/env.schema';
-import { AuthService } from '@/auth/auth.service';
-import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
-import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
-import { CreateUserPipe } from '@/auth/pipes/CreateUserPipe';
+
+import { AuthService, type AuthSession } from './auth.service';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { CreateAuthDto } from './dto/create-auth.dto';
+import { LoginAuthDto } from './dto/login-auth.dto';
+import { Public } from './public.decorator';
+import {
+  REFRESH_COOKIE_NAME,
+  clearRefreshCookieOptions,
+  readRefreshCookie,
+  refreshCookieOptions,
+} from './refresh-cookie';
 
 @ApiTags('Auth')
+@Public()
 @Controller('auth')
 export class AuthController {
+  private readonly isProduction: boolean;
+
   constructor(
     private readonly authService: AuthService,
-    private readonly configService: ConfigService<Env, true>,
-  ) {}
-
-  @ApiOperation({ summary: 'Create a new user' })
-  @ApiBody({
-    type: CreateAuthDto,
-    examples: {
-      example1: {
-        summary: 'Basic example',
-        value: {
-          userName: 'john_doe',
-          password: 'securePassword123',
-          email: 'john@example.com',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'User successfully created.',
-    schema: {
-      example: {
-        message: 'User created successfully',
-        access_token: 'string',
-        userData: {
-          userName: 'john_doe',
-          id: '1',
-          imageUrl: null,
-          description: '',
-          created: '',
-          email: 'john@example.com',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Validation failed.' })
-  @Post('/create')
-  async create(
-    @Body(CreateUserPipe) createAuthDto: CreateAuthDto,
-    @Res() res: Response,
+    configService: ConfigService<Env, true>,
   ) {
-    console.log(createAuthDto);
-    const result = await this.authService.create(createAuthDto, res);
-    return res.json(result);
+    this.isProduction =
+      configService.get('NODE_ENV', { infer: true }) === 'production';
   }
 
-  @ApiOperation({ summary: 'Validate refresh token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Refresh token is valid.',
+  @Post('register')
+  @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiConflictResponse({ description: 'Email is already registered' })
+  async register(
+    @Body() createAuthDto: CreateAuthDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    const session = await this.authService.register(createAuthDto);
+    return this.sendSession(response, session);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
+  async login(
+    @Body() loginAuthDto: LoginAuthDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    const session = await this.authService.login(loginAuthDto);
+    return this.sendSession(response, session);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiCookieAuth(REFRESH_COOKIE_NAME)
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, expired, revoked or reused refresh token',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid or expired refresh token.',
-  })
-  @Get('/validate-refresh')
-  async validateRefreshToken(@Req() req: Request, @Res() res: Response) {
-    const result = await this.authService.validationRefreshToken(
-      req.cookies[
-        this.configService.get('REFRESH_TOKEN_SECRET', { infer: true })
-      ],
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    const session = await this.authService.refresh(readRefreshCookie(request));
+    return this.sendSession(response, session);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiCookieAuth(REFRESH_COOKIE_NAME)
+  @ApiNoContentResponse()
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.logout(readRefreshCookie(request));
+    response.clearCookie(
+      REFRESH_COOKIE_NAME,
+      clearRefreshCookieOptions(this.isProduction),
+    );
+  }
+
+  private sendSession(
+    response: Response,
+    { accessToken, refreshToken, user }: AuthSession,
+  ): AuthResponseDto {
+    response.cookie(
+      REFRESH_COOKIE_NAME,
+      refreshToken,
+      refreshCookieOptions(this.isProduction),
     );
 
-    return res.json(result);
-  }
-
-  @ApiOperation({ summary: 'Logout user' })
-  @ApiResponse({ status: 200, description: 'User logged out successfully.' })
-  @ApiResponse({ status: 400, description: 'Failed to log out.' })
-  @Post('/logout')
-  logout(@Res() res: Response) {
-    const result = this.authService.logout(res);
-
-    return res.json(result);
-  }
-
-  @ApiOperation({ summary: 'Login user' })
-  @ApiBody({
-    type: LoginAuthDto,
-    examples: {
-      example1: {
-        summary: 'Basic example',
-        value: {
-          password: 'securePassword123',
-          email: 'john@example.com',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'User successfully created.',
-    schema: {
-      example: {
-        message: 'User created successfully',
-        access_token: 'string',
-        userData: {
-          userName: 'john_doe',
-          id: '1',
-          imageUrl: null,
-          description: '',
-          created: '',
-          email: 'john@example.com',
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Validation failed.' })
-  @ApiResponse({
-    status: 200,
-    description: 'User logged in successfully.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid credentials.',
-  })
-  @Post('/login')
-  async login(@Body() loginAuthDto: LoginAuthDto, @Res() res: Response) {
-    const result = await this.authService.login(loginAuthDto, res);
-
-    return res.json(result);
+    return { access_token: accessToken, userData: user };
   }
 }

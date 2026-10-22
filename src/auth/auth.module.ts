@@ -12,6 +12,9 @@ import { UserModule } from '@/user/user.module';
 import { UserService } from '@/user/user.service';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthDatabaseService } from '@/database/auth-database.service';
+import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
+
+const ACCESS_TOKEN_TTL = '15m';
 
 @Module({
   providers: [
@@ -19,7 +22,7 @@ import { AuthDatabaseService } from '@/database/auth-database.service';
     AuthService,
     UserService,
     AuthDatabaseService,
-    AuthDatabaseService,
+    RefreshTokenDatabaseService,
   ],
   controllers: [AuthController],
   imports: [
@@ -29,7 +32,7 @@ import { AuthDatabaseService } from '@/database/auth-database.service';
       inject: [ConfigService],
       useFactory: (configService: ConfigService<Env, true>) => ({
         secret: configService.get('JWT_ACCESS_SECRET', { infer: true }),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: ACCESS_TOKEN_TTL },
       }),
     }),
     UserModule,

@@ -7,8 +7,4 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   text: string;
-
-  @IsString()
-  @IsNotEmpty()
-  ownerId: string;
 }

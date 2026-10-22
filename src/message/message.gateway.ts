@@ -8,7 +8,9 @@ import {
 import { Server, Socket } from 'socket.io';
 import { MessageService } from './message.service';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { Public } from '@/auth/public.decorator';
 
+@Public()
 @WebSocketGateway(5001, {
   cors: {
     origin: ['http://localhost:3001', '*'],

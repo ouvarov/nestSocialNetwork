@@ -4,7 +4,6 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { plainToClass } from 'class-transformer';
 import { PostResponseDto } from './dto/post-response.dto';
 import { PostDatabaseOrmService } from '@/database/post-database.service';
-import { AuthService } from '@/auth/auth.service';
 import { CacheService } from '@/cache/cache.service';
 
 type PostRows = Awaited<ReturnType<PostDatabaseOrmService['allPosts']>>;
@@ -12,29 +11,21 @@ type PostRows = Awaited<ReturnType<PostDatabaseOrmService['allPosts']>>;
 @Injectable()
 export class PostService {
   constructor(
-    private readonly authService: AuthService,
     private readonly postOrmDatabaseService: PostDatabaseOrmService,
     private readonly cacheService: CacheService,
   ) {}
 
   async create(
-    createPostDto: CreatePostDto,
-    token: string,
+    userId: string,
+    { text, imageUrl }: CreatePostDto,
   ): Promise<{ postData: PostResponseDto }> {
-    const user = await this.authService.validationRefreshToken(token);
-    const { text, imageUrl } = createPostDto;
-
-    if (user.userData.id !== createPostDto.ownerId) {
-      throw new NotFoundException('User not owner');
-    }
-
     const post = await this.postOrmDatabaseService.createPost({
-      userId: user.userData.id,
+      userId,
       imageUrl,
       text,
     });
 
-    const cacheKey = `post:${user.userData.id}`;
+    const cacheKey = `post:${userId}`;
 
     await this.cacheService.deleteCache(cacheKey);
 
@@ -76,14 +67,7 @@ export class PostService {
     return data;
   }
 
-  async like(id: string, token: string) {
-    const user = await this.authService.validationRefreshToken(token);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const userId: string = user.userData.id;
+  async like(userId: string, id: string) {
     const post = await this.postOrmDatabaseService.toggleLikeOnPost({
       postId: id,
       userId,
@@ -104,15 +88,7 @@ export class PostService {
     return postData;
   }
 
-  async remove(id: string, token: string): Promise<any> {
-    const user = await this.authService.validationRefreshToken(token);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const userId: string = user.userData.id;
-
+  async remove(userId: string, id: string): Promise<any> {
     const cacheKey = `post:${userId}`;
 
     await this.cacheService.deleteCache(cacheKey);

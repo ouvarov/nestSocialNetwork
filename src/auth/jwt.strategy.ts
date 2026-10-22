@@ -1,16 +1,16 @@
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '@/config/env.schema';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-
 import { ExtractJwt, Strategy } from 'passport-jwt';
+
+import type { Env } from '@/config/env.schema';
+import type { AuthUser } from './current-user.decorator';
+
+type AccessTokenPayload = { sub: string; typ: string };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    @Inject(ConfigService)
-    private readonly configService: ConfigService<Env, true>,
-  ) {
+  constructor(configService: ConfigService<Env, true>) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -18,7 +18,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: any) {
-    return { userId: payload.sub, email: payload.email };
+  validate(payload: AccessTokenPayload): AuthUser {
+    if (payload.typ !== 'access') throw new UnauthorizedException();
+
+    return { id: payload.sub };
   }
 }
