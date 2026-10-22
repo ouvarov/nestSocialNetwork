@@ -38,10 +38,7 @@ export class ChatDatabaseService {
     const chatName = userNames.join(', ');
 
     const [newChat] = await this.Drizzle.insert(Chats)
-      .values({
-        chatName,
-        createdAt: new Date(),
-      })
+      .values({ chat_name: chatName })
       .returning();
 
     const insertMembers = userIdsSorted.map((userId) =>
@@ -97,9 +94,9 @@ export class ChatDatabaseService {
   }: {
     chatId: string;
     newChatName: string;
-  }): Promise<{ chatId: string; chatName: string }> {
+  }): Promise<{ chatId: string; chatName: string | null }> {
     const result = await this.Drizzle.update(Chats)
-      .set({ chatName: newChatName })
+      .set({ chat_name: newChatName })
       .where(eq(Chats.chat_id, chatId))
       .returning({ chatId: Chats.chat_id, chatName: Chats.chat_name });
 
@@ -110,7 +107,7 @@ export class ChatDatabaseService {
     return result[0];
   }
 
-  async getAllChats(): Promise<{ chatId: string; chatName: string }[]> {
+  async getAllChats(): Promise<{ chatId: string; chatName: string | null }[]> {
     const result = await this.Drizzle.select({
       chatId: Chats.chat_id,
       chatName: Chats.chat_name,

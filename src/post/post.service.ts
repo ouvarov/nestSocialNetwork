@@ -7,6 +7,8 @@ import { PostDatabaseOrmService } from '@/database/post-database.service';
 import { AuthService } from '@/auth/auth.service';
 import { CacheService } from '@/cache/cache.service';
 
+type PostRows = Awaited<ReturnType<PostDatabaseOrmService['allPosts']>>;
+
 @Injectable()
 export class PostService {
   constructor(
@@ -49,7 +51,7 @@ export class PostService {
 
   async find(id: string): Promise<{ postsData: any }> {
     const cacheKey = `post:${id}`;
-    let findAllPosts = await this.cacheService.getCache<any>(cacheKey);
+    let findAllPosts = await this.cacheService.getCache<PostRows>(cacheKey);
 
     console.log(findAllPosts, cacheKey);
 

@@ -25,7 +25,6 @@ describe('AuthService', () => {
   let authService: AuthService;
   let authDatabaseService: AuthDatabaseService;
   let jwtService: JwtService;
-  let configService: ConfigService;
   let res: Response;
 
   beforeEach(async () => {
@@ -37,14 +36,13 @@ describe('AuthService', () => {
       findUserByEmail: jest.fn(),
       createUser: jest.fn(),
     };
+    const mockEnv: Record<string, string> = {
+      JWT_ACCESS_SECRET: 'jwt-access-secret-key',
+      REFRESH_TOKEN_SECRET: 'jwt-refresh-secret-key',
+    };
     const mockConfigService = {
-      get: jest.fn((key: string) => {
-        const mockEnv = {
-          JWT_ACCESS_SECRET: 'jwt-access-secret-key',
-          REFRESH_TOKEN_SECRET: 'jwt-refresh-secret-key', // Мок секрета для refresh токена
-        };
-        return mockEnv[key];
-      }),
+      get: jest.fn((key: string) => mockEnv[key]),
+      getOrThrow: jest.fn((key: string) => mockEnv[key]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,7 +70,6 @@ describe('AuthService', () => {
     authService = module.get<AuthService>(AuthService);
     authDatabaseService = module.get<AuthDatabaseService>(AuthDatabaseService);
     jwtService = module.get<JwtService>(JwtService);
-    configService = module.get<ConfigService>(ConfigService);
 
     res = { cookie: jest.fn(), clearCookie: jest.fn() } as unknown as Response;
   });
@@ -144,39 +141,31 @@ describe('AuthService', () => {
     );
   });
 
-  it('should generate access token correctly', async () => {
-    const userId = 1;
+  it('should generate access token correctly', () => {
+    const userId = 'user-1';
 
     const signMock = jest
       .spyOn(jwtService, 'sign')
       .mockReturnValue('access_token');
+    signMock.mockClear();
 
-    await authService.generateAccessToken(userId);
+    const token = authService.generateAccessToken(userId);
 
-    expect(signMock).toHaveBeenCalledTimes(2);
-
-    expect(signMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ sub: userId }),
-    );
-
-    expect(signMock).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ sub: userId }),
-    );
+    expect(token).toBe('access_token');
+    expect(signMock).toHaveBeenCalledTimes(1);
+    expect(signMock).toHaveBeenCalledWith({ sub: userId });
   });
 
   it('should generate refresh token correctly', () => {
-    const userId = 1;
+    const userId = 'user-1';
     const token = authService.generateRefreshToken(userId);
     expect(typeof token).toBe('string');
 
-    expect(jwtService.sign).toHaveBeenCalledWith({ sub: userId });
+    expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: userId });
   });
 
   it('should return data for validation of refresh token', async () => {
     const token = 'mockRefreshToken';
-    const mockUser = { id: 1, user_id: '1', email: 'test@example.com' };
     authService.validationRefreshToken = jest.fn().mockResolvedValue({
       access_token: 'access_token',
       userData: new UserResponseDto(),

@@ -6,7 +6,7 @@ import { AuthModule } from '@/auth/auth.module';
 import { AuthService } from '@/auth/auth.service';
 import { UserService } from '@/user/user.service';
 import { CacheService } from '@/cache/cache.service';
-import { CacheDataModule } from '@/cache/cashe.module';
+import { CacheDataModule } from '@/cache/cache.module';
 import { DatabaseProvider } from '@/database/database.provider';
 import { UserDatabaseOrmService } from '@/database/user-database.service';
 

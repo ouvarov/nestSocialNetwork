@@ -10,7 +10,7 @@ import * as redisStore from 'cache-manager-redis-store';
 import { CacheStoreFactory } from '@nestjs/common/cache';
 import { ChatModule } from './chat/chat.module';
 import { MessageModule } from './message/message.module';
-import { CacheDataModule } from './cache/cashe.module';
+import { CacheDataModule } from './cache/cache.module';
 import { UploadModule } from './upload/upload.module';
 import { DatabaseModule } from './database/database.module';
 
@@ -36,9 +36,7 @@ const environment = process.env.NODE_ENV || 'development';
       isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (
-        configService: ConfigService,
-      ): Promise<CacheOptions> => ({
+      useFactory: (configService: ConfigService): CacheOptions => ({
         store: redisStore as unknown as CacheStoreFactory,
         host: configService.get('REDIS_HOST'),
         port: configService.get('REDIS_PORT'),

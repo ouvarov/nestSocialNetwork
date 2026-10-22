@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -13,6 +18,7 @@ import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
 import { CreateAuthDto } from '@/auth/dto/create-auth.dto';
 import { UserResponseDto } from '@/user/dto/user-response.dto';
 import { AuthDatabaseService } from '@/database/auth-database.service';
+import { getPostgresErrorCode } from '@/database/postgres-error';
 
 @Injectable()
 export class AuthService {
@@ -23,24 +29,32 @@ export class AuthService {
     private readonly authDatabaseOrmService: AuthDatabaseService,
   ) {}
 
-  private readonly refreshTokenSecret = this.configService.get<string>(
+  private readonly refreshTokenSecret = this.configService.getOrThrow<string>(
     'REFRESH_TOKEN_SECRET',
   );
 
-  generateAccessToken(userId): string {
+  generateAccessToken(userId: string): string {
     const payload = { sub: userId };
     return this.jwtService.sign(payload);
   }
 
-  generateRefreshToken(userId): string {
+  generateRefreshToken(userId: string): string {
     const payload = { sub: userId };
     return jwt.sign(payload, this.refreshTokenSecret, { expiresIn: '30d' });
   }
 
-  async validationRefreshToken(token) {
-    const userData = jwt.verify(token, this.refreshTokenSecret);
+  async validationRefreshToken(token: string) {
+    const payload = jwt.verify(token, this.refreshTokenSecret);
 
-    const user = await this.userService.findOneById(userData.sub as string);
+    if (typeof payload === 'string' || !payload.sub) {
+      throw new UnauthorizedException();
+    }
+
+    const user = await this.userService.findOneById(payload.sub);
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
 
     const responseUserData = plainToClass(
       UserResponseDto,
@@ -91,7 +105,7 @@ export class AuthService {
       return data;
     } catch (error) {
       console.log(error);
-      if (error.code === '23505') {
+      if (getPostgresErrorCode(error) === '23505') {
         throw new HttpException(
           `A user with the email ${email} already exists.`,
           HttpStatus.BAD_REQUEST,
@@ -118,8 +132,8 @@ export class AuthService {
     const { email, password } = loginAuthDto;
 
     const user = await this.userService.findOneByEmail(email);
-
-    const isPasswordEquals = await bcrypt.compare(password, user.password);
+    const isPasswordEquals =
+      user !== null && (await bcrypt.compare(password, user.password));
 
     if (!user || !isPasswordEquals) {
       throw new HttpException('bad credentials', HttpStatus.FORBIDDEN);

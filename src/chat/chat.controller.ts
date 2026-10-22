@@ -12,7 +12,6 @@ import { ChatService } from './chat.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
-import { GetChatDto } from './dto/get-chat.dto';
 import { ApiTags } from '@nestjs/swagger';
 
 @Controller('chat')

@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { ChatDatabaseService } from '@/database/chat-database.service';
+import { getPostgresErrorCode } from '@/database/postgres-error';
 
 @Injectable()
 export class ChatService {
@@ -11,7 +12,7 @@ export class ChatService {
         userIds,
       });
     } catch (error) {
-      if (error.code === '23503') {
+      if (getPostgresErrorCode(error) === '23503') {
         throw new HttpException(
           'Referenced data not found. Please check your input.',
           HttpStatus.BAD_REQUEST,
@@ -32,7 +33,7 @@ export class ChatService {
     try {
       return await this.chatDatabaseModule.getChatWithMessages(id);
     } catch (error) {
-      if (error.code === '22P02') {
+      if (getPostgresErrorCode(error) === '22P02') {
         throw new HttpException(
           'Invalid input format. Please check your data.',
           HttpStatus.BAD_REQUEST,

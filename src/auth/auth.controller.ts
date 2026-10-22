@@ -74,7 +74,9 @@ export class AuthController {
   @Get('/validate-refresh')
   async validateRefreshToken(@Req() req: Request, @Res() res: Response) {
     const result = await this.authService.validationRefreshToken(
-      req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')],
+      req.cookies[
+        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+      ],
     );
 
     return res.json(result);
@@ -84,8 +86,8 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'User logged out successfully.' })
   @ApiResponse({ status: 400, description: 'Failed to log out.' })
   @Post('/logout')
-  async logout(@Res() res: Response) {
-    const result = await this.authService.logout(res);
+  logout(@Res() res: Response) {
+    const result = this.authService.logout(res);
 
     return res.json(result);
   }

@@ -21,19 +21,16 @@ export class MessageGateway {
   constructor(private readonly messageService: MessageService) {}
 
   @SubscribeMessage('joinChat')
-  handleJoinChat(
+  async handleJoinChat(
     @MessageBody('chatId') chatId: string,
     @ConnectedSocket() client: Socket,
   ) {
-    client.join(chatId);
+    await client.join(chatId);
     console.log(`Client ${client.id} joined chat room: ${chatId}`);
   }
 
   @SubscribeMessage('createMessage')
-  async create(
-    @MessageBody() createMessageDto: CreateMessageDto,
-    @ConnectedSocket() client: Socket,
-  ) {
+  async create(@MessageBody() createMessageDto: CreateMessageDto) {
     const newMessage = await this.messageService.create(createMessageDto);
 
     this.server.to(createMessageDto.chatId).emit('newMessage', newMessage);

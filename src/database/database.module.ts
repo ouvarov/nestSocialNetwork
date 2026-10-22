@@ -12,17 +12,16 @@ import { UserDatabaseOrmService } from '@/database/user-database.service';
     UserDatabaseOrmService,
     {
       provide: 'DATABASE_POOL',
-      useFactory: async (configService: ConfigService) => {
-        const connectionString = configService.get<string>('DATABASE_URL');
+      useFactory: (configService: ConfigService) => {
+        const connectionString =
+          configService.getOrThrow<string>('DATABASE_URL');
         return postgres(connectionString, { prepare: false });
       },
       inject: [ConfigService],
     },
     {
       provide: 'DRIZZLE_ORM',
-      useFactory: async (sqlClient) => {
-        return drizzle(sqlClient);
-      },
+      useFactory: (sqlClient: postgres.Sql) => drizzle(sqlClient),
       inject: ['DATABASE_POOL'],
     },
   ],
