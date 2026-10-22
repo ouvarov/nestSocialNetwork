@@ -1,28 +1,69 @@
-import { Injectable } from '@nestjs/common';
-import { UpdateChatDto } from './dto/update-chat.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
 import { ChatDatabaseService } from '@/database/chat-database.service';
+
+import { UpdateChatDto } from './dto/update-chat.dto';
+
+const MIN_CHAT_MEMBERS = 2;
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly chatDatabaseModule: ChatDatabaseService) {}
+  constructor(private readonly chatDatabaseService: ChatDatabaseService) {}
 
-  create(userIds: string[]) {
-    return this.chatDatabaseModule.createChat({ userIds });
+  async create(userId: string, userIds: string[]): Promise<string> {
+    const memberIds = [...new Set([userId, ...userIds])];
+
+    if (memberIds.length < MIN_CHAT_MEMBERS) {
+      throw new BadRequestException('A chat needs at least one other member');
+    }
+
+    const existingChatId =
+      await this.chatDatabaseService.findChatWithExactMembers(memberIds);
+
+    return existingChatId ?? this.chatDatabaseService.createChat(memberIds);
   }
 
-  findAll() {
-    return this.chatDatabaseModule.getAllChats();
+  findAll(userId: string) {
+    return this.chatDatabaseService.getChatsOfUser(userId);
   }
 
-  findOne(id: string) {
-    return this.chatDatabaseModule.getChatWithMessages(id);
+  async findOne(userId: string, chatId: string) {
+    await this.assertMember(userId, chatId);
+
+    const chat = await this.chatDatabaseService.getChatWithMessages(chatId);
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    return chat;
   }
 
-  deleteChat(id: string) {
-    return this.chatDatabaseModule.deleteChat(id);
+  async deleteChat(userId: string, chatId: string): Promise<string> {
+    await this.assertMember(userId, chatId);
+
+    const deletedChatId = await this.chatDatabaseService.deleteChat(chatId);
+    if (!deletedChatId) throw new NotFoundException('Chat not found');
+
+    return deletedChatId;
   }
 
-  updateChatName(updateChatDto: UpdateChatDto) {
-    return this.chatDatabaseModule.updateChatName(updateChatDto);
+  async updateChatName(userId: string, { chatId, newChatName }: UpdateChatDto) {
+    await this.assertMember(userId, chatId);
+
+    const chat = await this.chatDatabaseService.updateChatName(
+      chatId,
+      newChatName,
+    );
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    return chat;
+  }
+
+  private async assertMember(userId: string, chatId: string): Promise<void> {
+    const isMember = await this.chatDatabaseService.isMember(chatId, userId);
+
+    if (!isMember) throw new NotFoundException('Chat not found');
   }
 }
