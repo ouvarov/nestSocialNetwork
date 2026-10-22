@@ -35,7 +35,9 @@ export class PostController {
     @Req() req: Request,
   ) {
     const token =
-      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+      await req.cookies[
+        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+      ];
     const result = await this.postService.create(createPostDto, token);
 
     return res.json(result);
@@ -57,7 +59,9 @@ export class PostController {
     @Res() res: Response,
   ) {
     const token =
-      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+      await req.cookies[
+        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+      ];
 
     const result = await this.postService.like(postId, token);
 
@@ -71,7 +75,9 @@ export class PostController {
     @Res() res: Response,
   ) {
     const token =
-      await req.cookies[this.configService.get<string>('REFRESH_TOKEN_SECRET')];
+      await req.cookies[
+        this.configService.getOrThrow<string>('REFRESH_TOKEN_SECRET')
+      ];
     const result = await this.postService.remove(id, token);
 
     return res.json(result);

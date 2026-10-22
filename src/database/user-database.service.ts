@@ -1,9 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 
-import { UserDataDto } from '@/user/dto/user-data.dto';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { Users } from '@/database/schemas/users.schema';
+import { Users, type User } from '@/database/schemas/users.schema';
 
 @Injectable()
 export class UserDatabaseOrmService {
@@ -12,7 +11,7 @@ export class UserDatabaseOrmService {
     private readonly Drizzle: ReturnType<typeof drizzle>,
   ) {}
 
-  async findByEmail(email: string): Promise<UserDataDto | null> {
+  async findByEmail(email: string): Promise<User | null> {
     const [user] = await this.Drizzle.select()
       .from(Users)
       .where(eq(Users.email, email));
@@ -20,7 +19,7 @@ export class UserDatabaseOrmService {
     return user || null;
   }
 
-  async findById(id: string): Promise<UserDataDto | null> {
+  async findById(id: string): Promise<User | null> {
     const [user] = await this.Drizzle.select()
       .from(Users)
       .where(eq(Users.user_id, id));
@@ -28,7 +27,7 @@ export class UserDatabaseOrmService {
     return user || null;
   }
 
-  async findAll(): Promise<UserDataDto[]> {
+  async findAll(): Promise<User[]> {
     return await this.Drizzle.select().from(Users);
   }
 }

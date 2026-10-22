@@ -20,7 +20,7 @@ export class CacheService {
   }
 
   // Get data from the cache
-  async getCache<T>(key: string): Promise<T> {
+  async getCache<T>(key: string): Promise<T | undefined> {
     return await this.cacheManager.get<T>(key);
   }
 

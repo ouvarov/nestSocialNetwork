@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, timestamp } from 'drizzle-orm/pg-core';
 import { Posts } from '@/database/schemas/posts.schema';
 import { Users } from '@/database/schemas/users.schema';
 

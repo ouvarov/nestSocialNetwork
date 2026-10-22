@@ -1,23 +1,19 @@
 // find.spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
-import { PostResponseDto } from '../dto/post-response.dto';
 import { CacheService } from '../../cache/cache.service';
 import { PostService } from '../post.service';
-import { PostDatabaseService } from '../../database/post-database.service';
+import { PostDatabaseOrmService } from '../../database/post-database.service';
 import { AuthService } from '../../auth/auth.service'; // Replace with actual path
 
 describe('PostService', () => {
   let service: PostService;
-  let cacheService: CacheService;
-  let postDatabaseService: PostDatabaseService;
-  let authService: AuthService;
 
   const mockCacheService = {
     getCache: jest.fn(),
     setCache: jest.fn(),
   };
 
-  const mockPostDatabaseService = {
+  const mockPostDatabaseOrmService = {
     allPosts: jest.fn(),
   };
 
@@ -31,15 +27,15 @@ describe('PostService', () => {
       providers: [
         PostService,
         { provide: CacheService, useValue: mockCacheService },
-        { provide: PostDatabaseService, useValue: mockPostDatabaseService },
+        {
+          provide: PostDatabaseOrmService,
+          useValue: mockPostDatabaseOrmService,
+        },
         { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 
     service = module.get<PostService>(PostService);
-    cacheService = module.get<CacheService>(CacheService);
-    postDatabaseService = module.get<PostDatabaseService>(PostDatabaseService);
-    authService = module.get<AuthService>(AuthService);
   });
 
   afterEach(() => {
@@ -57,7 +53,7 @@ describe('PostService', () => {
     ];
 
     mockCacheService.getCache.mockResolvedValue(null);
-    mockPostDatabaseService.allPosts.mockResolvedValue(postsFromDb);
+    mockPostDatabaseOrmService.allPosts.mockResolvedValue(postsFromDb);
 
     const result = await service.find('1');
 
@@ -97,12 +93,12 @@ describe('PostService', () => {
     ];
 
     mockCacheService.getCache.mockResolvedValue(null);
-    mockPostDatabaseService.allPosts.mockResolvedValue(postsFromDb);
+    mockPostDatabaseOrmService.allPosts.mockResolvedValue(postsFromDb);
 
     const result = await service.find('123');
 
     expect(mockCacheService.getCache).toHaveBeenCalledWith('post:123');
-    expect(mockPostDatabaseService.allPosts).toHaveBeenCalledWith('123');
+    expect(mockPostDatabaseOrmService.allPosts).toHaveBeenCalledWith('123');
     expect(mockCacheService.setCache).toHaveBeenCalledWith(
       'post:123',
       postsFromDb,

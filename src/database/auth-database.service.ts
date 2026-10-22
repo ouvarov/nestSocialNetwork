@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { UserDataDto } from '@/user/dto/user-data.dto';
-import { Users } from '@/database/schemas/users.schema';
+import { Users, type User } from '@/database/schemas/users.schema';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { DatabaseProvider } from '@/database/database.provider';
 
@@ -21,7 +20,7 @@ export class AuthDatabaseService {
     userName: string;
     email: string;
     password: string;
-  }): Promise<UserDataDto> {
+  }): Promise<User> {
     const user = await this.Drizzle.insert(Users)
       .values({
         user_name: userName,

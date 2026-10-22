@@ -107,6 +107,7 @@ export class PostDatabaseOrmService {
     })
       .from(Posts)
       .leftJoin(Likes, eq(Posts.post_id, Likes.post_id))
+      .where(eq(Posts.owner_id, id))
       .groupBy(
         Posts.post_id,
         Posts.owner_id,
