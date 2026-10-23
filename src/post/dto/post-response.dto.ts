@@ -1,21 +1,36 @@
-import { Expose } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class PostResponseDto {
-  @Expose({ name: 'post_id' })
-  id: number;
+  @ApiProperty({ format: 'uuid' })
+  id: string;
 
-  @Expose({ name: 'owner_id' })
-  ownerId: number;
+  @ApiProperty({ format: 'uuid' })
+  ownerId: string;
 
-  @Expose({ name: 'image_url' })
-  imageUrl: string;
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl: string | null;
 
-  @Expose()
+  @ApiProperty()
   text: string;
 
-  @Expose()
-  likes: [];
-
-  @Expose({ name: 'created' })
+  @ApiProperty()
   created: Date;
+
+  @ApiProperty({ example: 3 })
+  likeCount: number;
+
+  @ApiProperty({ description: 'Whether the caller liked this post' })
+  likedByMe: boolean;
+}
+
+export class PostPageDto {
+  @ApiProperty({ type: [PostResponseDto] })
+  items: PostResponseDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Pass as cursor to get the next page; null on the last page',
+  })
+  nextCursor: string | null;
 }

@@ -4,6 +4,16 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { Users, type User } from '@/database/schemas/users.schema';
 
+const publicColumns = {
+  user_id: Users.user_id,
+  user_name: Users.user_name,
+  image_url: Users.image_url,
+  description: Users.description,
+  created: Users.created,
+};
+
+type PublicUser = Pick<User, keyof typeof publicColumns>;
+
 @Injectable()
 export class UserDatabaseOrmService {
   constructor(
@@ -27,7 +37,19 @@ export class UserDatabaseOrmService {
     return user || null;
   }
 
-  async findAll(): Promise<User[]> {
-    return await this.Drizzle.select().from(Users);
+  async findPublicById(id: string): Promise<PublicUser | null> {
+    const [user] = await this.Drizzle.select(publicColumns)
+      .from(Users)
+      .where(eq(Users.user_id, id));
+
+    return user ?? null;
+  }
+
+  findAllPublic(): Promise<PublicUser[]> {
+    return this.Drizzle.select(publicColumns)
+      .from(Users)
+      .orderBy(Users.user_name);
   }
 }
+
+export type { PublicUser };

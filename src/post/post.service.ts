@@ -1,105 +1,96 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreatePostDto } from './dto/create-post.dto';
 
-import { plainToClass } from 'class-transformer';
-import { PostResponseDto } from './dto/post-response.dto';
-import { PostDatabaseOrmService } from '@/database/post-database.service';
-import { CacheService } from '@/cache/cache.service';
+import { decodeCursor, toPage } from '@/common/pagination/cursor';
+import type { PageQueryDto } from '@/common/pagination/page-query.dto';
+import {
+  PostDatabaseOrmService,
+  type PostRow,
+} from '@/database/post-database.service';
 
-type PostRows = Awaited<ReturnType<PostDatabaseOrmService['allPosts']>>;
+import type { CreatePostDto } from './dto/create-post.dto';
+import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
+
+const toPostResponse = ({
+  postId,
+  ownerId,
+  imageUrl,
+  text,
+  created,
+  likeCount,
+  likedByMe,
+}: PostRow): PostResponseDto => ({
+  id: postId,
+  ownerId,
+  imageUrl,
+  text,
+  created,
+  likeCount,
+  likedByMe,
+});
 
 @Injectable()
 export class PostService {
-  constructor(
-    private readonly postOrmDatabaseService: PostDatabaseOrmService,
-    private readonly cacheService: CacheService,
-  ) {}
+  constructor(private readonly postDatabaseService: PostDatabaseOrmService) {}
 
   async create(
     userId: string,
     { text, imageUrl }: CreatePostDto,
-  ): Promise<{ postData: PostResponseDto }> {
-    const post = await this.postOrmDatabaseService.createPost({
+  ): Promise<PostResponseDto> {
+    const postId = await this.postDatabaseService.createPost({
       userId,
       imageUrl,
       text,
     });
 
-    const cacheKey = `post:${userId}`;
-
-    await this.cacheService.deleteCache(cacheKey);
-
-    const responsePostData = plainToClass(PostResponseDto, post, {
-      excludeExtraneousValues: true,
-    });
-
-    const data = {
-      postData: { ...responsePostData },
-    };
-
-    return data;
+    return this.getPost(postId, userId);
   }
 
-  async find(id: string): Promise<{ postsData: any }> {
-    const cacheKey = `post:${id}`;
-    let findAllPosts = await this.cacheService.getCache<PostRows>(cacheKey);
-
-    if (!findAllPosts) {
-      findAllPosts = await this.postOrmDatabaseService.allPosts(id);
-      await this.cacheService.setCache(cacheKey, findAllPosts);
-    }
-
-    const postsData = findAllPosts?.map((post) => {
-      const postObject = post;
-      const postDto = plainToClass(PostResponseDto, postObject, {
-        excludeExtraneousValues: true,
-      });
-
-      return { ...postDto };
+  async findPostsOfOwner(
+    ownerId: string,
+    viewerId: string,
+    { limit, cursor }: PageQueryDto,
+  ): Promise<PostPageDto> {
+    const rows = await this.postDatabaseService.findPostsOfOwner({
+      ownerId,
+      viewerId,
+      limit,
+      cursor: cursor ? decodeCursor(cursor) : undefined,
     });
 
-    const data = {
-      postsData: postsData,
-    };
-
-    return data;
+    return toPage(rows, limit, toPostResponse, (row) => ({
+      createdAt: row.createdCursor,
+      id: row.postId,
+    }));
   }
 
-  async like(userId: string, id: string) {
-    const post = await this.postOrmDatabaseService.toggleLikeOnPost({
-      postId: id,
-      userId,
-    });
+  async like(userId: string, postId: string): Promise<PostResponseDto> {
+    await this.getPost(postId, userId);
+    await this.postDatabaseService.like(postId, userId);
 
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
-
-    const cacheKey = `post:${post.owner_id}`;
-
-    await this.cacheService.deleteCache(cacheKey);
-
-    const postData = plainToClass(PostResponseDto, post, {
-      excludeExtraneousValues: true,
-    });
-
-    return postData;
+    return this.getPost(postId, userId);
   }
 
-  async remove(userId: string, id: string): Promise<any> {
-    const cacheKey = `post:${userId}`;
+  async unlike(userId: string, postId: string): Promise<PostResponseDto> {
+    await this.getPost(postId, userId);
+    await this.postDatabaseService.unlike(postId, userId);
 
-    await this.cacheService.deleteCache(cacheKey);
+    return this.getPost(postId, userId);
+  }
 
-    const deletePost = await this.postOrmDatabaseService.deletePost({
-      postId: id,
-      userId,
-    });
+  async remove(userId: string, postId: string): Promise<void> {
+    const isDeleted = await this.postDatabaseService.deletePost(postId, userId);
 
-    const postData = plainToClass(PostResponseDto, deletePost, {
-      excludeExtraneousValues: true,
-    });
+    if (!isDeleted) throw new NotFoundException('Post not found');
+  }
 
-    return postData;
+  private async getPost(
+    postId: string,
+    viewerId: string,
+  ): Promise<PostResponseDto> {
+    const post = await this.postDatabaseService.findPost(postId, viewerId);
+
+    if (!post) throw new NotFoundException('Post not found');
+
+    return toPostResponse(post);
   }
 }
