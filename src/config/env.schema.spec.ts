@@ -35,4 +35,25 @@ describe('validateEnv', () => {
   it('rejects a port that is not a number', () => {
     expect(() => validateEnv({ ...validEnv, PORT: 'abc' })).toThrow(/PORT/);
   });
+
+  it('uses local storage by default and ignores empty supabase vars', () => {
+    const env = validateEnv({
+      ...validEnv,
+      SUPABASE_URL: '',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+    });
+
+    expect(env.STORAGE_DRIVER).toBe('local');
+    expect(env.SUPABASE_URL).toBeUndefined();
+  });
+
+  it('requires the supabase url and service role key for the supabase driver', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        STORAGE_DRIVER: 'supabase',
+        SUPABASE_URL: '',
+      }),
+    ).toThrow(/SUPABASE_URL[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
+  });
 });

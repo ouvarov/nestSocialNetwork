@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { UploadService } from './upload.service';
+
+import { StorageModule } from '@/storage/storage.module';
+
 import { UploadController } from './upload.controller';
-import { ConfigModule } from '@nestjs/config';
+import { UploadService } from './upload.service';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [StorageModule],
   controllers: [UploadController],
   providers: [UploadService],
 })
