@@ -1,10 +1,21 @@
 import { Module } from '@nestjs/common';
+import type Redis from 'ioredis';
+
+import { REDIS_CLIENT } from '@/redis/redis.module';
+
 import { CacheService } from './cache.service';
-import { CacheModule } from '@nestjs/cache-manager';
+import { MemoryCacheService } from './memory-cache.service';
+import { RedisCacheService } from './redis-cache.service';
 
 @Module({
-  imports: [CacheModule.register({ ttl: 6 })], // Ensure CacheModule is imported
-  providers: [CacheService],
-  exports: [CacheService], // Make CacheService available for export
+  providers: [
+    {
+      provide: CacheService,
+      useFactory: (redis: Redis | null): CacheService =>
+        redis ? new RedisCacheService(redis) : new MemoryCacheService(),
+      inject: [REDIS_CLIENT],
+    },
+  ],
+  exports: [CacheService],
 })
 export class CacheDataModule {}

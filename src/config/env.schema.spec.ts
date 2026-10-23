@@ -2,8 +2,6 @@ import { validateEnv } from './env.schema';
 
 const validEnv = {
   DATABASE_URL: 'postgres://user:password@localhost:5432/mydb',
-  REDIS_HOST: 'localhost',
-  REDIS_PORT: '6379',
   JWT_ACCESS_SECRET: 'a'.repeat(32),
   REFRESH_TOKEN_SECRET: 'b'.repeat(32),
   SUPABASE_URL: 'https://project.supabase.co',
@@ -16,7 +14,7 @@ describe('validateEnv', () => {
 
     expect(env.NODE_ENV).toBe('development');
     expect(env.PORT).toBe(5000);
-    expect(env.REDIS_PORT).toBe(6379);
+    expect(env.REDIS_URL).toBeUndefined();
     expect(env.CORS_ORIGIN).toBe('http://localhost:3001');
   });
 
@@ -30,6 +28,17 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...validEnv, REFRESH_TOKEN_SECRET: 'jwt-refresh-key' }),
     ).toThrow(/REFRESH_TOKEN_SECRET/);
+  });
+
+  it('accepts a redis url and rejects a malformed one', () => {
+    const redisUrl = 'rediss://default:password@host:6379';
+
+    expect(validateEnv({ ...validEnv, REDIS_URL: redisUrl }).REDIS_URL).toBe(
+      redisUrl,
+    );
+    expect(() => validateEnv({ ...validEnv, REDIS_URL: 'not a url' })).toThrow(
+      /REDIS_URL/,
+    );
   });
 
   it('rejects a port that is not a number', () => {

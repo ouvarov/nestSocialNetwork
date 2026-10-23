@@ -9,7 +9,6 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 
 import { UserModule } from '@/user/user.module';
-import { UserService } from '@/user/user.service';
 import { DatabaseModule } from '@/database/database.module';
 import { AuthDatabaseService } from '@/database/auth-database.service';
 import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
@@ -20,7 +19,6 @@ const ACCESS_TOKEN_TTL = '15m';
   providers: [
     JwtStrategy,
     AuthService,
-    UserService,
     AuthDatabaseService,
     RefreshTokenDatabaseService,
   ],
