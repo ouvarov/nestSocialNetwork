@@ -1,21 +1,30 @@
-import { Injectable } from '@nestjs/common';
-import { UserDatabaseOrmService } from '@/database/user-database.service';
-
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
+
+import { UserDatabaseOrmService } from '@/database/user-database.service';
 
 import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UserService {
   constructor(private readonly userDatabaseService: UserDatabaseOrmService) {}
-  async findAll() {
-    const users = await this.userDatabaseService.findAll();
 
-    const responseUserData = plainToClass(UserResponseDto, users, {
+  async findAll(): Promise<UserResponseDto[]> {
+    const users = await this.userDatabaseService.findAllPublic();
+
+    return plainToClass(UserResponseDto, users, {
       excludeExtraneousValues: true,
     });
+  }
 
-    return responseUserData;
+  async findProfile(id: string): Promise<UserResponseDto> {
+    const user = await this.userDatabaseService.findPublicById(id);
+
+    if (!user) throw new NotFoundException('User not found');
+
+    return plainToClass(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async findOneById(id: string) {

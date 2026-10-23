@@ -1,108 +1,214 @@
-// find.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { CacheService } from '../../cache/cache.service';
+import { NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import type { Cursor } from '@/common/pagination/cursor';
+import type {
+  PostDatabaseOrmService,
+  PostRow,
+} from '@/database/post-database.service';
+
 import { PostService } from '../post.service';
-import { PostDatabaseOrmService } from '../../database/post-database.service';
-import { AuthService } from '../../auth/auth.service'; // Replace with actual path
+
+const ADA = 'ada';
+const LINUS = 'linus';
+
+type StoredPost = {
+  postId: string;
+  ownerId: string;
+  imageUrl: string | null;
+  text: string;
+  created: Date;
+};
+
+const createPostStore = () => {
+  const posts = new Map<string, StoredPost>();
+  const likes = new Set<string>();
+  let clock = Date.parse('2026-10-01T12:00:00Z');
+
+  const likeKey = (postId: string, userId: string) => `${postId}:${userId}`;
+  const toRow = (post: StoredPost, viewerId: string): PostRow => ({
+    ...post,
+    createdCursor: post.created.toISOString(),
+    likeCount: [...likes].filter((key) => key.startsWith(`${post.postId}:`))
+      .length,
+    likedByMe: likes.has(likeKey(post.postId, viewerId)),
+  });
+  const isBefore = (post: StoredPost, cursor: Cursor) =>
+    post.created.toISOString() < cursor.createdAt ||
+    (post.created.toISOString() === cursor.createdAt &&
+      post.postId < cursor.id);
+
+  const store = {
+    createPost: ({
+      userId,
+      imageUrl,
+      text,
+    }: {
+      userId: string;
+      imageUrl?: string;
+      text: string;
+    }) => {
+      clock += 1000;
+      const postId = randomUUID();
+      posts.set(postId, {
+        postId,
+        ownerId: userId,
+        imageUrl: imageUrl ?? null,
+        text,
+        created: new Date(clock),
+      });
+      return Promise.resolve(postId);
+    },
+    findPost: (postId: string, viewerId: string) => {
+      const post = posts.get(postId);
+      return Promise.resolve(post ? toRow(post, viewerId) : null);
+    },
+    findPostsOfOwner: ({
+      ownerId,
+      viewerId,
+      limit,
+      cursor,
+    }: {
+      ownerId: string;
+      viewerId: string;
+      limit: number;
+      cursor?: Cursor;
+    }) =>
+      Promise.resolve(
+        [...posts.values()]
+          .filter((post) => post.ownerId === ownerId)
+          .filter((post) => !cursor || isBefore(post, cursor))
+          .sort((a, b) => b.created.getTime() - a.created.getTime())
+          .slice(0, limit + 1)
+          .map((post) => toRow(post, viewerId)),
+      ),
+    like: (postId: string, userId: string) => {
+      likes.add(likeKey(postId, userId));
+      return Promise.resolve();
+    },
+    unlike: (postId: string, userId: string) => {
+      likes.delete(likeKey(postId, userId));
+      return Promise.resolve();
+    },
+    deletePost: (postId: string, ownerId: string) => {
+      const isOwner = posts.get(postId)?.ownerId === ownerId;
+      if (isOwner) posts.delete(postId);
+      return Promise.resolve(isOwner);
+    },
+  };
+
+  return { store, posts };
+};
+
+const createPostService = () => {
+  const { store, posts } = createPostStore();
+  const postService = new PostService(
+    store as unknown as PostDatabaseOrmService,
+  );
+
+  return { postService, posts };
+};
 
 describe('PostService', () => {
-  let service: PostService;
+  it('creates a post with no likes', async () => {
+    const { postService } = createPostService();
 
-  const mockCacheService = {
-    getCache: jest.fn(),
-    setCache: jest.fn(),
-  };
+    const post = await postService.create(ADA, { text: 'hello' });
 
-  const mockPostDatabaseOrmService = {
-    allPosts: jest.fn(),
-  };
-
-  const mockAuthService = {
-    // Add any required methods for testing
-    validateUser: jest.fn(),
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PostService,
-        { provide: CacheService, useValue: mockCacheService },
-        {
-          provide: PostDatabaseOrmService,
-          useValue: mockPostDatabaseOrmService,
-        },
-        { provide: AuthService, useValue: mockAuthService },
-      ],
-    }).compile();
-
-    service = module.get<PostService>(PostService);
+    expect(post).toMatchObject({
+      ownerId: ADA,
+      text: 'hello',
+      imageUrl: null,
+      likeCount: 0,
+      likedByMe: false,
+    });
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  describe('likes', () => {
+    it('counts a like once however many times it is sent', async () => {
+      const { postService } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
+
+      await postService.like(LINUS, id);
+      const post = await postService.like(LINUS, id);
+
+      expect(post).toMatchObject({ likeCount: 1, likedByMe: true });
+    });
+
+    it('shows likedByMe for the caller only', async () => {
+      const { postService } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
+      await postService.like(LINUS, id);
+
+      const { items } = await postService.findPostsOfOwner(ADA, ADA, {
+        limit: 10,
+      });
+
+      expect(items[0]).toMatchObject({ likeCount: 1, likedByMe: false });
+    });
+
+    it('removes the like on unlike', async () => {
+      const { postService } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
+      await postService.like(LINUS, id);
+
+      const post = await postService.unlike(LINUS, id);
+
+      expect(post).toMatchObject({ likeCount: 0, likedByMe: false });
+    });
+
+    it('answers 404 for a post that does not exist', async () => {
+      const { postService } = createPostService();
+
+      await expect(postService.like(LINUS, randomUUID())).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
-  it('should return postsData from cache if available', async () => {
-    const postsFromDb = [
-      {
-        post_id: '1',
-        image_url: 'https://example.com/image.jpg',
-        owner_id: 'user1',
-        text: 'Post content',
-      },
-    ];
+  describe('remove', () => {
+    it("answers 404 and keeps the post when it is someone else's", async () => {
+      const { postService, posts } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
 
-    mockCacheService.getCache.mockResolvedValue(null);
-    mockPostDatabaseOrmService.allPosts.mockResolvedValue(postsFromDb);
+      await expect(postService.remove(LINUS, id)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(posts.has(id)).toBe(true);
+    });
 
-    const result = await service.find('1');
+    it('deletes the own post', async () => {
+      const { postService, posts } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
 
-    // Ensure postsData is an array
-    expect(Array.isArray(result.postsData)).toBe(true);
+      await postService.remove(ADA, id);
 
-    // Check individual properties of the mapped DTO
-    expect(result.postsData[0]).toHaveProperty('id', '1');
-    expect(result.postsData[0]).toHaveProperty(
-      'imageUrl',
-      'https://example.com/image.jpg',
-    );
-    expect(result.postsData[0]).toHaveProperty('ownerId', 'user1');
-    expect(result.postsData[0]).toHaveProperty('text', 'Post content');
+      expect(posts.has(id)).toBe(false);
+    });
   });
 
-  it('should call database service if no cache is available and set cache', async () => {
-    const postsFromDb = [
-      {
-        post_id: '123',
-        image_url: 'https://example.com/image.jpg',
-        owner_id: 'user1',
-        text: 'Post content',
-        created: '2024-12-03T12:35:19.844Z',
-      },
-    ];
+  describe('findPostsOfOwner', () => {
+    it('pages through one owner, newest first', async () => {
+      const { postService } = createPostService();
+      for (const text of ['first', 'second', 'third']) {
+        await postService.create(ADA, { text });
+      }
+      await postService.create(LINUS, { text: 'not ada' });
 
-    const responsePostsFromDb = [
-      {
-        id: '123',
-        imageUrl: 'https://example.com/image.jpg',
-        ownerId: 'user1',
-        likes: undefined,
-        text: 'Post content',
-        created: '2024-12-03T12:35:19.844Z',
-      },
-    ];
+      const firstPage = await postService.findPostsOfOwner(ADA, LINUS, {
+        limit: 2,
+      });
+      const secondPage = await postService.findPostsOfOwner(ADA, LINUS, {
+        limit: 2,
+        cursor: firstPage.nextCursor ?? undefined,
+      });
 
-    mockCacheService.getCache.mockResolvedValue(null);
-    mockPostDatabaseOrmService.allPosts.mockResolvedValue(postsFromDb);
-
-    const result = await service.find('123');
-
-    expect(mockCacheService.getCache).toHaveBeenCalledWith('post:123');
-    expect(mockPostDatabaseOrmService.allPosts).toHaveBeenCalledWith('123');
-    expect(mockCacheService.setCache).toHaveBeenCalledWith(
-      'post:123',
-      postsFromDb,
-    );
-    expect(result.postsData).toEqual(responsePostsFromDb);
+      expect(firstPage.items.map(({ text }) => text)).toEqual([
+        'third',
+        'second',
+      ]);
+      expect(secondPage.items.map(({ text }) => text)).toEqual(['first']);
+      expect(secondPage.nextCursor).toBeNull();
+    });
   });
 });
