@@ -1,26 +1,23 @@
-# Use the official Node.js image
-FROM node:22
+# syntax=docker/dockerfile:1
 
-# Set the working directory
-WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json to install dependencies
-COPY package*.json ./
-
-# Install dependencies
-RUN npm install
-
-# Copy the entire application code
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY . .
+RUN npm run build && npm prune --omit=dev --ignore-scripts
 
-# Compile TypeScript to JavaScript
-RUN npm run build
-
-# Set the environment variable for NestJS
-ENV NODE_ENV=${NODE_ENV}
-
-# Expose port 5000
+FROM node:24-alpine AS runtime
+ENV NODE_ENV=production
+ENV PORT=5000
+WORKDIR /app
+COPY --from=build --chown=node:node /app/package.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/drizzle ./drizzle
+RUN mkdir uploads && chown node:node uploads
+USER node
 EXPOSE 5000
-
-# Start the application in production mode
-CMD ["npm", "run", "start:dev"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + process.env.PORT + '/api/health/live').then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"
+CMD ["node", "dist/main.js"]

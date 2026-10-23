@@ -1,0 +1,13 @@
+.git
+.github
+.neon
+.env*
+!.env.example
+node_modules
+dist
+coverage
+uploads
+*.log
+.tmp*
+Dockerfile
+docker-compose.yml

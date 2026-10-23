@@ -15,15 +15,18 @@ const MAX_RETRIES_PER_REQUEST = 3;
 
 const createRedisClient = (config: ConfigService<Env, true>) => {
   const url = config.get('REDIS_URL', { infer: true });
+  const logger = new Logger('Redis');
 
   if (!url) {
-    new Logger('Redis').warn(
+    logger.warn(
       'REDIS_URL is not set: cache and rate limits are kept in memory',
     );
     return null;
   }
 
-  return new Redis(url, { maxRetriesPerRequest: MAX_RETRIES_PER_REQUEST });
+  return new Redis(url, {
+    maxRetriesPerRequest: MAX_RETRIES_PER_REQUEST,
+  }).on('error', (error: Error) => logger.warn(error.message));
 };
 
 @Global()
