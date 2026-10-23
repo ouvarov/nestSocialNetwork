@@ -1,12 +1,12 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import * as postgres from 'postgres';
-import { envSchema } from '../config/env.schema';
+import { envObjectSchema } from '../config/env.schema';
 
 const MIGRATIONS_FOLDER = 'drizzle';
 
 const runMigrations = async () => {
-  const { DATABASE_URL } = envSchema
+  const { DATABASE_URL } = envObjectSchema
     .pick({ DATABASE_URL: true })
     .parse(process.env);
   const client = postgres(DATABASE_URL, { max: 1, onnotice: () => {} });

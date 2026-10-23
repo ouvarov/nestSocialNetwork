@@ -1,37 +1,34 @@
-import { Injectable } from '@nestjs/common';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { ConfigService } from '@nestjs/config';
-import type { Env } from '@/config/env.schema';
-import { extname } from 'path';
+import {
+  BadRequestException,
+  Injectable,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import { StorageService } from '@/storage/storage.service';
+
+import { detectImageType } from './image-type';
 
 @Injectable()
 export class UploadService {
-  private readonly supabaseClient: SupabaseClient;
+  constructor(private readonly storageService: StorageService) {}
 
-  constructor(private readonly configService: ConfigService<Env, true>) {
-    this.supabaseClient = createClient(
-      configService.get('SUPABASE_URL', { infer: true }),
-      configService.get('SUPABASE_ANON_KEY', { infer: true }),
-    );
-  }
+  async uploadImage(
+    userId: string,
+    file: Express.Multer.File | undefined,
+  ): Promise<string> {
+    if (!file) throw new BadRequestException('Image file is required');
 
-  async uploadImage(file: Express.Multer.File): Promise<string> {
-    const filePath = `uploads/${Date.now()}${extname(file.originalname)}`;
-    const { error } = await this.supabaseClient.storage
-      .from('images')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
+    const imageType = detectImageType(file.buffer);
 
-    if (error) {
-      throw new Error(error.message);
+    if (!imageType) {
+      throw new UnsupportedMediaTypeException(
+        'Only PNG, JPEG, WebP and GIF images are allowed',
+      );
     }
 
-    const { data: publicUrlData } = this.supabaseClient.storage
-      .from('images')
-      .getPublicUrl(filePath);
+    const path = `users/${userId}/${randomUUID()}.${imageType.extension}`;
 
-    return publicUrlData.publicUrl;
+    return this.storageService.save(path, file.buffer, imageType.contentType);
   }
 }
