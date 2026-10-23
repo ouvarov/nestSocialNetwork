@@ -40,13 +40,11 @@ export class ChatService {
     return chat;
   }
 
-  async deleteChat(userId: string, chatId: string): Promise<string> {
+  async deleteChat(userId: string, chatId: string): Promise<void> {
     await this.assertMember(userId, chatId);
 
     const deletedChatId = await this.chatDatabaseService.deleteChat(chatId);
     if (!deletedChatId) throw new NotFoundException('Chat not found');
-
-    return deletedChatId;
   }
 
   async updateChatName(userId: string, { chatId, newChatName }: UpdateChatDto) {

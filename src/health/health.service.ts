@@ -5,13 +5,7 @@ import type Redis from 'ioredis';
 
 import { REDIS_CLIENT } from '@/redis/redis.module';
 
-type DependencyStatus = 'up' | 'down' | 'disabled';
-
-type Readiness = {
-  ready: boolean;
-  database: DependencyStatus;
-  redis: DependencyStatus;
-};
+import type { DependencyStatus, ReadinessDto } from './dto/health-response.dto';
 
 const probe = async (
   check: () => Promise<unknown>,
@@ -31,7 +25,7 @@ export class HealthService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
   ) {}
 
-  async checkReadiness(): Promise<Readiness> {
+  async checkReadiness(): Promise<ReadinessDto> {
     const redis = this.redis;
     const [database, redisStatus] = await Promise.all([
       probe(() => this.db.execute(sql`select 1`)),
@@ -47,5 +41,3 @@ export class HealthService {
     };
   }
 }
-
-export type { Readiness };

@@ -17,6 +17,7 @@ import {
 
 import { CurrentUser, type AuthUser } from '@/auth/current-user.decorator';
 
+import { UploadResponseDto } from './dto/upload-response.dto';
 import { UploadService } from './upload.service';
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -37,12 +38,11 @@ export class UploadController {
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['image'],
       properties: { image: { type: 'string', format: 'binary' } },
     },
   })
-  @ApiCreatedResponse({
-    schema: { type: 'object', properties: { url: { type: 'string' } } },
-  })
+  @ApiCreatedResponse({ type: UploadResponseDto })
   @ApiPayloadTooLargeResponse({ description: 'Larger than 5 MB' })
   @ApiUnsupportedMediaTypeResponse({
     description: 'Not a PNG, JPEG, WebP or GIF',
@@ -50,7 +50,7 @@ export class UploadController {
   async uploadImage(
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: Express.Multer.File | undefined,
-  ): Promise<{ url: string }> {
+  ): Promise<UploadResponseDto> {
     return { url: await this.uploadService.uploadImage(user.id, file) };
   }
 }

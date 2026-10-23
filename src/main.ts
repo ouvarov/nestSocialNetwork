@@ -2,15 +2,15 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
-import { REFRESH_COOKIE_NAME } from './auth/refresh-cookie';
 import { SocketIoAdapter } from './common/adapters/socket-io.adapter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import type { Env } from './config/env.schema';
+import { API_PREFIX, createOpenApiDocument } from './openapi/openapi-document';
 import {
   LOCAL_UPLOADS_DIR,
   LOCAL_UPLOADS_ROUTE,
@@ -20,7 +20,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get<ConfigService<Env, true>>(ConfigService);
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix(API_PREFIX);
   app.enableShutdownHooks();
   app.useWebSocketAdapter(
     new SocketIoAdapter(app, configService.get('CORS_ORIGIN', { infer: true })),
@@ -45,18 +45,7 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Pulse API')
-    .setDescription('Social network API: auth, posts, likes, chats')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addCookieAuth(REFRESH_COOKIE_NAME)
-    .build();
-  SwaggerModule.setup(
-    'docs',
-    app,
-    SwaggerModule.createDocument(app, swaggerConfig),
-  );
+  SwaggerModule.setup('docs', app, createOpenApiDocument(app));
 
   app.enableCors({
     origin: configService.get('CORS_ORIGIN', { infer: true }),
