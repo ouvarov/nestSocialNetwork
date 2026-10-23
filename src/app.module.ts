@@ -11,6 +11,7 @@ import { ChatModule } from './chat/chat.module';
 import { AppThrottlerGuard } from './common/guards/throttler.guard';
 import { validateEnv } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
+import { HealthModule } from './health/health.module';
 import { MessageModule } from './message/message.module';
 import { PostModule } from './post/post.module';
 import { REDIS_CLIENT, RedisModule } from './redis/redis.module';
@@ -45,6 +46,7 @@ const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
     ChatModule,
     MessageModule,
     UploadModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
