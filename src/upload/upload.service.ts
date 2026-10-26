@@ -6,6 +6,7 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { StorageService } from '@/storage/storage.service';
+import { userImagesDir } from '@/storage/user-images';
 
 import { detectImageType } from './image-type';
 
@@ -27,7 +28,7 @@ export class UploadService {
       );
     }
 
-    const path = `users/${userId}/${randomUUID()}.${imageType.extension}`;
+    const path = `${userImagesDir(userId)}${randomUUID()}.${imageType.extension}`;
 
     return this.storageService.save(path, file.buffer, imageType.contentType);
   }

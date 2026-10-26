@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { decodeCursor, toPage } from '@/common/pagination/cursor';
 import type { PageQueryDto } from '@/common/pagination/page-query.dto';
@@ -6,6 +10,8 @@ import {
   PostDatabaseOrmService,
   type PostRow,
 } from '@/database/post-database.service';
+import { StorageService } from '@/storage/storage.service';
+import { userImagesDir } from '@/storage/user-images';
 
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
@@ -30,12 +36,19 @@ const toPostResponse = ({
 
 @Injectable()
 export class PostService {
-  constructor(private readonly postDatabaseService: PostDatabaseOrmService) {}
+  constructor(
+    private readonly postDatabaseService: PostDatabaseOrmService,
+    private readonly storageService: StorageService,
+  ) {}
 
   async create(
     userId: string,
     { text, imageUrl }: CreatePostDto,
   ): Promise<PostResponseDto> {
+    if (imageUrl && !this.isOwnImage(userId, imageUrl)) {
+      throw new BadRequestException('imageUrl must be an image you uploaded');
+    }
+
     const postId = await this.postDatabaseService.createPost({
       userId,
       imageUrl,
@@ -92,5 +105,15 @@ export class PostService {
     if (!post) throw new NotFoundException('Post not found');
 
     return toPostResponse(post);
+  }
+
+  private isOwnImage(userId: string, imageUrl: string): boolean {
+    const ownImagesPrefix = this.storageService.publicUrl(
+      userImagesDir(userId),
+    );
+
+    return URL.canParse(imageUrl)
+      ? new URL(imageUrl).href.startsWith(ownImagesPrefix)
+      : false;
   }
 }

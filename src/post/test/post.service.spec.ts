@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import type { Cursor } from '@/common/pagination/cursor';
@@ -6,11 +6,13 @@ import type {
   PostDatabaseOrmService,
   PostRow,
 } from '@/database/post-database.service';
+import type { StorageService } from '@/storage/storage.service';
 
 import { PostService } from '../post.service';
 
 const ADA = 'ada';
 const LINUS = 'linus';
+const CDN = 'https://cdn.test';
 
 type StoredPost = {
   postId: string;
@@ -102,8 +104,12 @@ const createPostStore = () => {
 
 const createPostService = () => {
   const { store, posts } = createPostStore();
+  const storage = {
+    publicUrl: (path: string) => `${CDN}/${path}`,
+  };
   const postService = new PostService(
     store as unknown as PostDatabaseOrmService,
+    storage as unknown as StorageService,
   );
 
   return { postService, posts };
@@ -121,6 +127,32 @@ describe('PostService', () => {
       imageUrl: null,
       likeCount: 0,
       likedByMe: false,
+    });
+  });
+
+  describe('image url', () => {
+    it('accepts an image the author uploaded', async () => {
+      const { postService } = createPostService();
+      const imageUrl = `${CDN}/users/${ADA}/photo.png`;
+
+      const post = await postService.create(ADA, { text: 'hi', imageUrl });
+
+      expect(post.imageUrl).toBe(imageUrl);
+    });
+
+    it.each([
+      ['an external url', 'https://tracker.example.com/pixel.png'],
+      ['another user image', `${CDN}/users/${LINUS}/photo.png`],
+      [
+        'a path escaping the author folder',
+        `${CDN}/users/${ADA}/../${LINUS}/photo.png`,
+      ],
+    ])('rejects %s', async (_case, imageUrl) => {
+      const { postService } = createPostService();
+
+      await expect(
+        postService.create(ADA, { text: 'hi', imageUrl }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

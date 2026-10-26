@@ -30,7 +30,12 @@ class SupabaseStorageService extends StorageService {
       throw new BadGatewayException('Could not store the image');
     }
 
-    return storage.getPublicUrl(path).data.publicUrl;
+    return this.publicUrl(path);
+  }
+
+  publicUrl(path: string): string {
+    return this.client.storage.from(this.bucket).getPublicUrl(path).data
+      .publicUrl;
   }
 }
 

@@ -4,6 +4,8 @@ abstract class StorageService {
     data: Buffer,
     contentType: string,
   ): Promise<string>;
+
+  abstract publicUrl(path: string): string;
 }
 
 export { StorageService };

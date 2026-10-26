@@ -23,6 +23,7 @@ const createUploadService = () => {
       saved.push({ path, contentType });
       return Promise.resolve(`https://cdn.test/${path}`);
     },
+    publicUrl: (path: string) => `https://cdn.test/${path}`,
   };
 
   return {
