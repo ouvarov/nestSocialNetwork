@@ -15,6 +15,7 @@ import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
 import { AuthDatabaseService } from '@/database/auth-database.service';
 import { getPostgresErrorCode } from '@/database/postgres-error';
 import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
+import type { RefreshToken } from '@/database/schemas/refreshTokens.schema';
 import type { User } from '@/database/schemas/users.schema';
 import { UserResponseDto } from '@/user/dto/user-response.dto';
 import { UserService } from '@/user/user.service';
@@ -32,6 +33,7 @@ type RefreshTokenPayload = { sub: string; jti: string; typ: string };
 const PASSWORD_HASH_ROUNDS = 12;
 const UNIQUE_VIOLATION = '23505';
 const INVALID_CREDENTIALS = 'Invalid credentials';
+const CONCURRENT_REFRESH_GRACE_MS = 10_000;
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
   'timing-safe-comparison-for-unknown-emails',
   PASSWORD_HASH_ROUNDS,
@@ -99,12 +101,7 @@ export class AuthService {
 
     if (!storedToken) throw new UnauthorizedException();
 
-    if (storedToken.revoked_at) {
-      await this.refreshTokenDatabaseService.revokeFamily(
-        storedToken.family_id,
-      );
-      throw new UnauthorizedException();
-    }
+    if (storedToken.revoked_at) return this.refreshRotatedToken(storedToken);
 
     if (storedToken.expires_at.getTime() <= Date.now()) {
       throw new UnauthorizedException();
@@ -124,10 +121,9 @@ export class AuthService {
     );
 
     if (!isRotated) {
-      await this.refreshTokenDatabaseService.revokeFamily(
-        storedToken.family_id,
+      return this.refreshRotatedToken(
+        await this.refreshTokenDatabaseService.findById(storedToken.token_id),
       );
-      throw new UnauthorizedException();
     }
 
     return {
@@ -135,6 +131,39 @@ export class AuthService {
       refreshToken: nextToken.token,
       user: toUserResponse(user),
     };
+  }
+
+  private async refreshRotatedToken(
+    token: RefreshToken | null,
+  ): Promise<AuthSession> {
+    if (!token) throw new UnauthorizedException();
+
+    if (!(await this.isConcurrentRefresh(token))) {
+      await this.refreshTokenDatabaseService.revokeFamily(token.family_id);
+      throw new UnauthorizedException();
+    }
+
+    const user = await this.userService.findOneById(token.user_id);
+
+    if (!user) throw new UnauthorizedException();
+
+    return this.startSession(user, token.family_id);
+  }
+
+  private async isConcurrentRefresh({
+    revoked_at: revokedAt,
+    replaced_by: successorId,
+  }: RefreshToken): Promise<boolean> {
+    if (!revokedAt || !successorId) return false;
+
+    if (Date.now() - revokedAt.getTime() > CONCURRENT_REFRESH_GRACE_MS) {
+      return false;
+    }
+
+    const successor =
+      await this.refreshTokenDatabaseService.findById(successorId);
+
+    return Boolean(successor && !successor.revoked_at);
   }
 
   async logout(refreshToken: string | undefined): Promise<void> {
@@ -145,11 +174,11 @@ export class AuthService {
     if (payload) await this.refreshTokenDatabaseService.revoke(payload.jti);
   }
 
-  private async startSession(user: User): Promise<AuthSession> {
-    const refreshToken = await this.signRefreshToken(
-      user.user_id,
-      randomUUID(),
-    );
+  private async startSession(
+    user: User,
+    familyId: string = randomUUID(),
+  ): Promise<AuthSession> {
+    const refreshToken = await this.signRefreshToken(user.user_id, familyId);
     await this.refreshTokenDatabaseService.create(refreshToken.record);
 
     return {
