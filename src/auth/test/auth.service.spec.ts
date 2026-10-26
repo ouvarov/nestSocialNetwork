@@ -131,6 +131,18 @@ const createAuthService = () => {
   return { authService, jwtService, tokens };
 };
 
+const GRACE_WINDOW_PASSED_MS = 11_000;
+
+const ageRotations = (tokens: Map<string, RefreshToken>) => {
+  for (const token of tokens.values()) {
+    if (token.revoked_at) {
+      token.revoked_at = new Date(
+        token.revoked_at.getTime() - GRACE_WINDOW_PASSED_MS,
+      );
+    }
+  }
+};
+
 describe('AuthService', () => {
   const registerAda = (authService: AuthService) =>
     authService.register({
@@ -212,15 +224,55 @@ describe('AuthService', () => {
     });
 
     it('treats a reused refresh token as theft and revokes the whole family', async () => {
-      const { authService } = createAuthService();
+      const { authService, tokens } = createAuthService();
       const { refreshToken: stolenToken } = await registerAda(authService);
       const { refreshToken: currentToken } =
         await authService.refresh(stolenToken);
+      ageRotations(tokens);
 
       await expect(authService.refresh(stolenToken)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
       await expect(authService.refresh(currentToken)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('lets concurrent refreshes with the same token all succeed', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
+
+      const sessions = await Promise.all([
+        authService.refresh(refreshToken),
+        authService.refresh(refreshToken),
+      ]);
+
+      for (const session of sessions) {
+        await expect(
+          authService.refresh(session.refreshToken),
+        ).resolves.toMatchObject({ user: { userName: 'Ada Lovelace' } });
+      }
+    });
+
+    it('accepts a just-rotated token again within the grace window', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
+      const { refreshToken: currentToken } =
+        await authService.refresh(refreshToken);
+
+      await expect(authService.refresh(refreshToken)).resolves.toBeDefined();
+      await expect(authService.refresh(currentToken)).resolves.toBeDefined();
+    });
+
+    it('does not revive a rotated token after logout of its successor', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
+      const { refreshToken: currentToken } =
+        await authService.refresh(refreshToken);
+
+      await authService.logout(currentToken);
+
+      await expect(authService.refresh(refreshToken)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
     });
