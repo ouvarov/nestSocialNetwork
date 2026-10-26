@@ -7,7 +7,7 @@ const LOCAL_UPLOADS_DIR = join(process.cwd(), 'uploads');
 const LOCAL_UPLOADS_ROUTE = '/uploads';
 
 class LocalStorageService extends StorageService {
-  constructor(private readonly publicUrl: string) {
+  constructor(private readonly baseUrl: string) {
     super();
   }
 
@@ -17,7 +17,11 @@ class LocalStorageService extends StorageService {
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, data);
 
-    return `${this.publicUrl}${LOCAL_UPLOADS_ROUTE}/${path}`;
+    return this.publicUrl(path);
+  }
+
+  publicUrl(path: string): string {
+    return `${this.baseUrl}${LOCAL_UPLOADS_ROUTE}/${path}`;
   }
 }
 

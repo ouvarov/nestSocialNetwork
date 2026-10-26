@@ -781,7 +781,7 @@
         "properties": {
           "imageUrl": {
             "type": "string",
-            "example": "https://picsum.photos/seed/pulse/800/600"
+            "description": "A URL returned by POST /api/upload for the caller"
           },
           "text": {
             "type": "string",
