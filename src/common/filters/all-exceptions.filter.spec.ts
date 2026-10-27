@@ -21,6 +21,8 @@ describe('toErrorResponse', () => {
     ['23505', 409],
     ['23503', 404],
     ['22P02', 400],
+    ['22007', 400],
+    ['22008', 400],
   ])('maps postgres error %s to %i', (code, status) => {
     expect(toErrorResponse(postgresError(code)).status).toBe(status);
   });

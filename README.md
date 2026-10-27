@@ -59,6 +59,18 @@ Socket.IO events are not part of the spec; the client types them in `src/api/soc
 | `GET /api/health/live`  | the process is up                                           |
 | `GET /api/health/ready` | Postgres and Redis respond; 503 with the failing one if not |
 
+## Tests
+
+- **Unit** (`src/**/*.spec.ts`): services, token rotation, cursors, error mapping and env validation, with the database mocked.
+- **E2E** (`test/*.e2e-spec.ts`): the whole app on a random port against a real Postgres, through Supertest and a Socket.IO client. They cover auth and refresh-token reuse, posts and likes, uploads, chats and their membership rules, live messages, rate limits, CORS and health.
+
+```bash
+npm test
+npm run test:e2e   # needs DATABASE_URL and a migrated database
+```
+
+E2E tests create their own users with unique emails and never clean the database, so they are safe to run against a dev database. They use in-memory cache and rate limits regardless of `REDIS_URL`, and remove the images they upload.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on every pull request and push to `main`:
@@ -67,6 +79,7 @@ Socket.IO events are not part of the spec; the client types them in `src/api/soc
 | ------- | -------------------------------------------------------------------- |
 | Quality | type-check, ESLint, Prettier, `openapi.json` is up to date           |
 | Unit    | Jest                                                                 |
+| E2E     | migrations and the e2e suite on a Postgres service container         |
 | Docker  | the image builds, migrations run and `/api/health/ready` answers 200 |
 
 The web repo's CI also checks out this repo's `main` and runs its Playwright suite against it.
@@ -79,6 +92,7 @@ The web repo's CI also checks out this repo's `main` and runs its Playwright sui
 | `npm run build`            | Compile to `dist/`                   |
 | `npm run check`            | Type-check, ESLint and Prettier      |
 | `npm test`                 | Unit tests                           |
+| `npm run test:e2e`         | E2E tests against `DATABASE_URL`     |
 | `npm run db:generate`      | Generate a migration from the schema |
 | `npm run db:migrate`       | Apply migrations                     |
 | `npm run db:seed`          | Demo data                            |
