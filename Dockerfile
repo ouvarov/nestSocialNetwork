@@ -20,4 +20,4 @@ USER node
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + process.env.PORT + '/api/health/live').then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "node dist/database/migrate.js && exec node dist/main.js"]

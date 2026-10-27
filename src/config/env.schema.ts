@@ -30,6 +30,7 @@ const envObjectSchema = z.object({
   DATABASE_URL: z.url(),
   REDIS_URL: optionalWhenEmpty(z.url()),
   RATE_LIMIT_DISABLED: flag,
+  ORIGIN_SECRET: optionalWhenEmpty(secret),
   JWT_ACCESS_SECRET: secret,
   REFRESH_TOKEN_SECRET: secret,
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),

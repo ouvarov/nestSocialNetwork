@@ -7,6 +7,7 @@ import helmet from 'helmet';
 
 import { SocketIoAdapter } from './common/adapters/socket-io.adapter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { requireProxy } from './common/proxy/require-proxy';
 import type { Env } from './config/env.schema';
 import { API_PREFIX } from './openapi/openapi-document';
 import {
@@ -32,6 +33,10 @@ const configureApp = (app: NestExpressApplication) => {
   if (configService.get('STORAGE_DRIVER', { infer: true }) === 'local') {
     app.useStaticAssets(LOCAL_UPLOADS_DIR, { prefix: LOCAL_UPLOADS_ROUTE });
   }
+
+  const originSecret = configService.get('ORIGIN_SECRET', { infer: true });
+  if (originSecret) app.use(requireProxy(originSecret));
+
   app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({
