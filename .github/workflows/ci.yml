@@ -46,6 +46,38 @@ jobs:
       - run: npm ci
       - run: npm test -- --ci
 
+  e2e:
+    name: E2E (Supertest, Socket.IO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: pulse
+          POSTGRES_PASSWORD: pulse
+          POSTGRES_DB: pulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pulse -d pulse"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://pulse:pulse@localhost:5432/pulse
+      JWT_ACCESS_SECRET: ci-access-secret-that-is-long-enough-000
+      REFRESH_TOKEN_SECRET: ci-refresh-secret-that-is-long-enough-00
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run test:e2e -- --ci
+
   docker:
     name: Docker image boots
     runs-on: ubuntu-latest

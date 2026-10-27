@@ -22,6 +22,8 @@ const POSTGRES_ERRORS: Record<string, { status: HttpStatus; message: string }> =
       message: 'Referenced resource not found',
     },
     '22P02': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
+    '22007': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
+    '22008': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
   };
 
 const fromHttpException = (exception: HttpException): ErrorResponse => {
