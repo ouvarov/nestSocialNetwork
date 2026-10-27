@@ -6,7 +6,7 @@ type ProxiedRequest = Request & { clientIp?: string };
 
 const ORIGIN_SECRET_HEADER = 'x-origin-secret';
 const CLIENT_IP_HEADER = 'x-real-ip';
-const DIRECT_PATHS = ['/api/health/', '/docs', '/socket.io/'];
+const DIRECT_PATHS = ['/api/health/', '/socket.io/'];
 
 const isFromProxy = (request: Request, expected: Buffer): boolean => {
   const received = Buffer.from(
