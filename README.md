@@ -13,7 +13,7 @@
 
 **Live demo:** https://pulse-social-henna.vercel.app. Sign in as `ada@example.com` / `pulse-demo-password`. To chat with yourself, open a second window as `linus@example.com`.
 
-> The free API host sleeps after 15 minutes idle, so the first request can take about a minute. Demo data resets nightly at 03:00 UTC.
+> The free API host sleeps after 15 minutes idle, so the first request can take about a minute.
 
 The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/viteSocialNetwork-) (React 19, Vite, TanStack Query).
 
@@ -189,7 +189,6 @@ The demo runs on free tiers: the API on Render (Docker), Postgres on Neon, Redis
 - **Socket.IO connects to Render directly**, because Vercel rewrites don't carry WebSockets. The token goes in the handshake, and chat events are limited per user.
 - **The free instance sleeps after 15 minutes idle.** The web app pings `/api/health/live` directly and shows a "waking up" notice, so the proxy never waits on a sleeping instance.
 - **Migrations run when the container starts**, because Render's pre-deploy command is paid only.
-- **Nightly reset:** `.github/workflows/reset-demo.yml` reseeds the demo at 03:00 UTC. It needs a `DATABASE_URL` repository secret.
 
 First deploy:
 
