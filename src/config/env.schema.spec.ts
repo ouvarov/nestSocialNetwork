@@ -89,4 +89,16 @@ describe('validateEnv', () => {
       }),
     ).toThrow(/SUPABASE_URL[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
   });
+
+  it('leaves the proxy check off when ORIGIN_SECRET is empty', () => {
+    expect(
+      validateEnv({ ...validEnv, ORIGIN_SECRET: '' }).ORIGIN_SECRET,
+    ).toBeUndefined();
+  });
+
+  it('rejects an ORIGIN_SECRET shorter than 32 characters', () => {
+    expect(() => validateEnv({ ...validEnv, ORIGIN_SECRET: 'short' })).toThrow(
+      /ORIGIN_SECRET/,
+    );
+  });
 });
