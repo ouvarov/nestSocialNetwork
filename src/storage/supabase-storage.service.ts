@@ -1,11 +1,11 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 import { StorageService } from './storage.service';
 
 class SupabaseStorageService extends StorageService {
   private readonly logger = new Logger(SupabaseStorageService.name);
-  private readonly client: SupabaseClient;
+  private readonly client: ReturnType<typeof createClient>;
 
   constructor(
     url: string,

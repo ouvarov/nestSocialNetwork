@@ -4,15 +4,18 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { Users, type User } from '@/database/schemas/users.schema';
 
+type PublicUser = Pick<
+  User,
+  'user_id' | 'user_name' | 'image_url' | 'description' | 'created'
+>;
+
 const publicColumns = {
   user_id: Users.user_id,
   user_name: Users.user_name,
   image_url: Users.image_url,
   description: Users.description,
   created: Users.created,
-};
-
-type PublicUser = Pick<User, keyof typeof publicColumns>;
+} satisfies Record<keyof PublicUser, unknown>;
 
 @Injectable()
 export class UserDatabaseOrmService {

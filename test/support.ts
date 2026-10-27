@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { io, type Socket } from 'socket.io-client';
-import * as request from 'supertest';
+import request from 'supertest';
 
 import { configureApp } from '@/app.setup';
 import type { AuthResponseDto } from '@/auth/dto/auth-response.dto';

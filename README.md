@@ -10,7 +10,7 @@ The web client lives in a separate repo: [ouvarov/viteSocialNetwork-](https://gi
 
 ## Stack
 
-- NestJS 10, TypeScript (strict)
+- NestJS 12, TypeScript 6 (strict)
 - PostgreSQL with Drizzle ORM and SQL migrations
 - Redis (optional): cache and rate-limit storage; falls back to memory without `REDIS_URL`
 - JWT access token + rotating refresh token in an httpOnly cookie
@@ -20,7 +20,7 @@ The web client lives in a separate repo: [ouvarov/viteSocialNetwork-](https://gi
 
 ## Getting started
 
-Requires Node.js 24 and PostgreSQL.
+Requires Node.js 24.9+ and PostgreSQL. Nest 12 packages are ESM-only; the app stays CommonJS and loads them through `require(esm)`, and Jest runs with `--experimental-vm-modules` for the same reason.
 
 ```bash
 npm ci

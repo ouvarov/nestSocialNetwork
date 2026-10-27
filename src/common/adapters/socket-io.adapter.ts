@@ -10,10 +10,12 @@ export class SocketIoAdapter extends IoAdapter {
     super(app);
   }
 
-  createIOServer(port: number, options?: ServerOptions): Server {
-    return super.createIOServer(port, {
+  createIOServer(port: number, options?: Partial<ServerOptions>): Server {
+    const withCors: Partial<ServerOptions> = {
       ...options,
       cors: { origin: this.corsOrigin, credentials: true },
-    }) as Server;
+    };
+
+    return super.createIOServer(port, withCors as ServerOptions);
   }
 }

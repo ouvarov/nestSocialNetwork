@@ -1,7 +1,7 @@
 import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { Env } from '@/config/env.schema';
-import * as postgres from 'postgres';
+import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { UserDatabaseOrmService } from '@/database/user-database.service';
 
