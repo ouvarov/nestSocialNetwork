@@ -125,5 +125,8 @@
       "@nestjs/common": "$@nestjs/common",
       "@nestjs/core": "$@nestjs/core"
     }
+  },
+  "engines": {
+    "node": ">=24.9.0"
   }
 }
