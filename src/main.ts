@@ -11,7 +11,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = configureApp(app);
 
-  SwaggerModule.setup('docs', app, createOpenApiDocument(app));
+  SwaggerModule.setup('api/docs', app, createOpenApiDocument(app));
 
   const port = configService.get('PORT', { infer: true });
   await app.listen(port);

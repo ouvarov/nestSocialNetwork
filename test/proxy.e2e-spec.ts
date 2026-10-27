@@ -39,13 +39,9 @@ it('passes proxied requests on to the API', async () => {
     .expect(401);
 });
 
-it('keeps health checks and docs reachable directly', async () => {
+it('keeps health checks reachable directly for wake-up pings', async () => {
   await api(app).get('/api/health/live').expect(200);
-  await api(app)
-    .get('/docs')
-    .expect((response) => {
-      expect(response.status).not.toBe(403);
-    });
+  await api(app).get('/api/health/ready').expect(200);
 });
 
 it('rate limits each visitor by the IP the proxy reports', async () => {

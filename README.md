@@ -1,75 +1,171 @@
-# Pulse — API
+<h1 align="center">Pulse — API</h1>
 
-[![CI](https://github.com/ouvarov/nestSocialNetwork/actions/workflows/ci.yml/badge.svg)](https://github.com/ouvarov/nestSocialNetwork/actions/workflows/ci.yml)
+<p align="center">
+  The NestJS backend of Pulse, a real-time social network: profiles, image posts, likes and live chat.
+</p>
 
-NestJS API for **Pulse**, a small social network: profiles, posts with images, likes and real-time chat.
+<p align="center">
+  <a href="https://github.com/ouvarov/nestSocialNetwork/actions/workflows/ci.yml"><img src="https://github.com/ouvarov/nestSocialNetwork/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pulse-social-henna.vercel.app"><img src="https://img.shields.io/badge/demo-live-brightgreen" alt="Live demo"></a>
+  <a href="https://pulse-social-henna.vercel.app/api/docs"><img src="https://img.shields.io/badge/API-Swagger-85EA2D" alt="Swagger"></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
+</p>
 
-The web client lives in a separate repo: [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/viteSocialNetwork-) (React, Vite, TanStack Query).
+**Live demo:** https://pulse-social-henna.vercel.app. Sign in as `ada@example.com` / `pulse-demo-password`. To chat with yourself, open a second window as `linus@example.com`.
 
-> Work in progress. Next: a live demo.
+> The free API host sleeps after 15 minutes idle, so the first request can take about a minute. Demo data resets nightly at 03:00 UTC.
 
-## Stack
+The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/viteSocialNetwork-) (React 19, Vite, TanStack Query).
 
-- NestJS 12, TypeScript 6 (strict)
-- PostgreSQL with Drizzle ORM and SQL migrations
-- Redis (optional): cache and rate-limit storage; falls back to memory without `REDIS_URL`
-- JWT access token + rotating refresh token in an httpOnly cookie
-- Socket.IO for chat
-- Image storage on the local disk or Supabase Storage
-- Env validated with zod at startup; Swagger at `/docs`, committed `openapi.json`
+## Features
 
-## Getting started
+- **Auth**:
+  - a short-lived access token;
+  - rotating refresh tokens in an httpOnly cookie, with reuse detection that revokes the whole session;
+  - logout revokes the token.
+- **Posts with images:**
+  - uploads go to Supabase Storage (local disk in dev);
+  - the type is checked from the file bytes, with a 5 MB limit;
+  - a post can only use images its author uploaded.
+- **Feed:** cursor pagination that stays stable while new posts arrive. Likes are idempotent and report `likedByMe` per viewer.
+- **Chats:**
+  - creating a chat with the same members returns the existing one;
+  - members can rename or delete it;
+  - a non-member gets 404, as if the chat didn't exist.
+- **Live messages** over Socket.IO: JWT handshake, rooms per chat, acks, validation.
+- **Rate limits** stored in Redis:
+  - 5 sign-in attempts per minute per visitor;
+  - chat events limited per user;
+  - the visitor IP is taken only from the trusted proxy.
+- **Operations:**
+  - liveness and readiness checks;
+  - env validated with zod at startup;
+  - one exception filter for HTTP and sockets that maps Postgres errors to 4xx;
+  - migrations run on boot.
 
-Requires Node.js 24.9+ and PostgreSQL. Nest 12 packages are ESM-only; the app stays CommonJS and loads them through `require(esm)`, and Jest runs with `--experimental-vm-modules` for the same reason.
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser["Browser — React app"]
+    REST["openapi-fetch client<br/>in-memory access token"]
+    SOCK["socket.io-client"]
+  end
+
+  subgraph Vercel
+    PROXY["/api/* proxy<br/>+ x-origin-secret, x-real-ip"]
+  end
+
+  subgraph Render["Render — this API (NestJS, Docker)"]
+    GATE["Proxy check · JWT guard · throttler"]
+    AUTH["Auth<br/>refresh rotation"]
+    POSTS["Posts · likes · uploads"]
+    CHATS["Chats REST"]
+    GW["Chat gateway<br/>JWT handshake · rooms"]
+    GATE --> AUTH & POSTS & CHATS
+  end
+
+  PG[("Neon Postgres<br/>Drizzle migrations")]
+  REDIS[("Upstash Redis<br/>rate limits · profile cache")]
+  S3[("Supabase Storage")]
+
+  REST -- "same origin, refresh cookie" --> PROXY --> GATE
+  SOCK -- "WSS + access token" --> GW
+  AUTH & POSTS & CHATS & GW --> PG
+  GATE --> REDIS
+  POSTS --> S3
+```
+
+How the hosting fits together and why: [Deploy](#deploy).
+
+## Tech stack — and why
+
+| Layer            | Choice                            | Why                                                                                                  |
+| ---------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Framework        | NestJS 12, TypeScript 6 (strict)  | Modules, DI and guards map well to auth plus realtime; Swagger comes from the same decorators        |
+| Database         | PostgreSQL + Drizzle ORM          | SQL-first and typed, with migrations committed in `drizzle/`                                         |
+| Realtime         | Socket.IO                         | Rooms, acks and reconnection out of the box                                                          |
+| Cache and limits | Redis (optional)                  | Profile cache and shared rate limits; falls back to memory without `REDIS_URL`                       |
+| Storage          | Supabase Storage / local disk     | One `StorageService` interface; no cloud account needed locally                                      |
+| Contract         | Committed `openapi.json`          | The web client generates its types from it ([ADR-0001](docs/adr/0001-two-repos-openapi-contract.md)) |
+| Config           | zod                               | The app refuses to start with a missing or weak secret                                               |
+| Tests            | Jest, Supertest, socket.io-client | Unit tests for logic, e2e against a real Postgres                                                    |
+
+## Run locally
+
+Requires Node.js 24.9+ and PostgreSQL.
 
 ```bash
 npm ci
-cp .env.example .env   # set DATABASE_URL and the two secrets (openssl rand -hex 32)
+cp .env.example .env   # set DATABASE_URL and the two JWT secrets (openssl rand -hex 32)
 npm run db:migrate
-npm run db:seed        # optional demo data
+npm run db:seed        # demo users: ada@, linus@, grace@example.com / pulse-demo-password
 npm run start:dev
 ```
 
-The API runs on http://localhost:5000, Swagger UI on http://localhost:5000/docs.
+The API runs on http://localhost:5000, and Swagger UI is at http://localhost:5000/api/docs.
 
-### Docker
+**With Docker**, nothing has to be installed except Docker:
 
 ```bash
 cp .env.example .env   # set the two secrets
 docker compose up --build
+docker compose --profile seed up seed   # optional demo data
 ```
 
-Starts Postgres, Redis, runs migrations and serves the API on port 5000. `docker compose --profile seed up seed` adds demo data.
+Nest 12 packages are ESM-only. The app stays CommonJS and loads them through `require(esm)`, which is why Jest runs with `--experimental-vm-modules`.
 
-## API contract
-
-`openapi.json` is generated from the controllers and committed. The web client generates its types from the copy on `main`, so a changed endpoint shows up there as a type error.
+## Testing
 
 ```bash
-npm run openapi:generate   # rewrite openapi.json
-npm run openapi:check      # fail if it is out of date
+npm test           # 80 unit tests
+npm run test:e2e   # 74 e2e tests; needs DATABASE_URL and a migrated database
 ```
 
-Socket.IO events are not part of the spec; the client types them in `src/api/socket-events.ts`.
+- **Unit tests** (`src/**/*.spec.ts`) cover the logic, with the database mocked: token rotation and reuse, cursors, error mapping, env validation.
+- **E2E tests** (`test/*.e2e-spec.ts`) start the whole app the way `main.ts` does, against a real Postgres. They use Supertest and a Socket.IO client. Coverage:
+  - auth flows and refresh reuse;
+  - posts, likes and pagination;
+  - uploads;
+  - chat membership rules;
+  - live messages;
+  - rate limits and the proxy check;
+  - CORS and health.
+- **Tests that can fail:** for each suite I broke the code under test on purpose (a removed guard, a skipped revocation, a wrong tracker) and checked that a test failed.
 
-## Health
+E2E tests create users with unique emails and clean up their uploads, so they are safe to run against a dev database.
 
-| Endpoint                | Answers                                                     |
-| ----------------------- | ----------------------------------------------------------- |
-| `GET /api/health/live`  | the process is up                                           |
-| `GET /api/health/ready` | Postgres and Redis respond; 503 with the failing one if not |
+## API
 
-## Tests
+- **Swagger UI:** [`/api/docs`](https://pulse-social-henna.vercel.app/api/docs). It is served through the same proxy as the app, so "Try it out" works. Sign in with `POST /api/auth/login`, then authorize with the returned token.
+- **The spec:** `openapi.json` is generated from the controllers and committed.
 
-- **Unit** (`src/**/*.spec.ts`): services, token rotation, cursors, error mapping and env validation, with the database mocked.
-- **E2E** (`test/*.e2e-spec.ts`): the whole app on a random port against a real Postgres, through Supertest and a Socket.IO client. They cover auth and refresh-token reuse, posts and likes, uploads, chats and their membership rules, live messages, rate limits, CORS and health.
+  ```bash
+  npm run openapi:generate   # rewrite openapi.json
+  npm run openapi:check      # fail if it is out of date
+  ```
 
-```bash
-npm test
-npm run test:e2e   # needs DATABASE_URL and a migrated database
+- **Socket.IO events** (`joinChat`, `leaveChat`, `createMessage`, `newMessage`) are not part of OpenAPI. The client types them in `src/api/socket-events.ts`.
+- **Health:** `GET /api/health/live` reports that the process is up. `GET /api/health/ready` checks Postgres and Redis and returns 503 naming the one that failed.
+
+## Project structure
+
+```text
+src/
+  auth/       register, login, refresh rotation, JWT strategy, socket auth
+  user/       profiles (cached)
+  post/       posts, likes, cursor pagination
+  upload/     image upload, type detection from bytes
+  chat/       chats and membership
+  message/    Socket.IO gateway
+  storage/    local disk and Supabase drivers behind one interface
+  database/   Drizzle schemas, repositories, migrate and seed scripts
+  common/     exception filter, throttler guard, proxy check, pagination
+  config/     zod env schema
+test/         e2e suites
+drizzle/      SQL migrations
+docs/adr/     architecture decisions
 ```
-
-E2E tests create their own users with unique emails and never clean the database, so they are safe to run against a dev database. They use in-memory cache and rate limits regardless of `REDIS_URL`, and remove the images they upload.
 
 ## CI
 
@@ -88,58 +184,51 @@ The web repo's CI also checks out this repo's `main` and runs its Playwright sui
 
 The demo runs on free tiers: the API on Render (Docker), Postgres on Neon, Redis on Upstash, images in Supabase Storage, and the web app on Vercel.
 
-```mermaid
-flowchart LR
-  browser[Browser] -->|"/api/* (same origin)"| vercel[Vercel]
-  vercel -->|"x-origin-secret, x-real-ip"| api[Render: API]
-  browser -->|"Socket.IO, wake-up ping"| api
-  api --> neon[(Neon Postgres)]
-  api --> upstash[(Upstash Redis)]
-  api --> supabase[(Supabase Storage)]
-```
-
 - **The browser calls the API through Vercel**, so the refresh cookie stays first-party. Safari blocks third-party cookies, so a direct cross-site call would sign users out on every reload.
-- **Vercel adds a secret header.** With `ORIGIN_SECRET` set, the API answers only requests that carry it. The exceptions are health, docs and Socket.IO. Because only proxied requests get through, the API can trust Vercel's `x-real-ip` for rate limits.
-- **Socket.IO connects to Render directly**, because Vercel rewrites don't carry WebSockets. The token goes in the handshake, so no cookie is involved. Chat messages are rate limited per user, not per IP.
-- **The free Render instance sleeps after 15 minutes idle.** The web app pings `/api/health/live` on Render directly and shows a "waking up" notice. That keeps the proxy from timing out during the minute the API takes to start.
-- **Migrations run when the container starts.** Render's pre-deploy command is paid only.
+- **Vercel adds a secret header.** With `ORIGIN_SECRET` set, the API answers only requests that carry it. Health checks and Socket.IO are the exceptions. Because only proxied requests get through, the API can trust Vercel's `x-real-ip` for rate limits.
+- **Socket.IO connects to Render directly**, because Vercel rewrites don't carry WebSockets. The token goes in the handshake, and chat events are limited per user.
+- **The free instance sleeps after 15 minutes idle.** The web app pings `/api/health/live` directly and shows a "waking up" notice, so the proxy never waits on a sleeping instance.
+- **Migrations run when the container starts**, because Render's pre-deploy command is paid only.
+- **Nightly reset:** `.github/workflows/reset-demo.yml` reseeds the demo at 03:00 UTC. It needs a `DATABASE_URL` repository secret.
 
-### First deploy
+First deploy:
 
-1. **Neon:** create a project in Frankfurt and copy the pooled connection string.
-2. **Upstash:** create a Redis database and copy the `rediss://` URL.
-3. **Supabase:** create a project and a **public** bucket named `images`. Copy the project URL and the service role key.
-4. **Render:** New → Blueprint → this repo. `render.yaml` defines the service; fill in:
-
-   | Variable                                    | Value                                                 |
-   | ------------------------------------------- | ----------------------------------------------------- |
-   | `DATABASE_URL`                              | the Neon string                                       |
-   | `REDIS_URL`                                 | the Upstash URL                                       |
-   | `ORIGIN_SECRET`                             | `openssl rand -hex 32`, the same value goes to Vercel |
-   | `PUBLIC_URL`                                | `https://<service>.onrender.com`                      |
-   | `CORS_ORIGIN`                               | `https://<project>.vercel.app`                        |
-   | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | from Supabase                                         |
-
-   The JWT secrets are generated by Render.
-
-5. **Demo data**, once:
+1. In Render, choose New → Blueprint → this repo; `render.yaml` defines the service.
+2. Fill in `DATABASE_URL`, `REDIS_URL`, `ORIGIN_SECRET` (the same value goes to Vercel), `PUBLIC_URL`, `CORS_ORIGIN` (the Vercel URL), `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Render generates the JWT secrets.
+3. Seed once:
 
    ```bash
-   DATABASE_URL=<neon string> NODE_ENV=production DEMO_MODE=true npm run db:seed
+   DATABASE_URL=<neon> NODE_ENV=production DEMO_MODE=true npm run db:seed
    ```
 
-6. **Nightly reset:** add `DATABASE_URL` as a repository secret. `.github/workflows/reset-demo.yml` reseeds the demo at 03:00 UTC, and it can also be run by hand.
+## Decisions and trade-offs
+
+- **Two repos with a generated OpenAPI contract, not a monorepo.** Each side can be reviewed on its own, and CI catches contract drift. → [ADR-0001](docs/adr/0001-two-repos-openapi-contract.md)
+- **Vite SPA instead of Next.js** on the web side. Everything is behind a login, and the API owns auth and sockets. → [ADR-0002](https://github.com/ouvarov/viteSocialNetwork-/blob/main/docs/adr/0002-vite-spa-not-next.md)
+- **Access token in memory, rotating refresh cookie behind a same-origin proxy.** These are the XSS, CSRF and Safari trade-offs. → [ADR-0003](docs/adr/0003-auth-tokens.md)
+- **Single instance.** The Socket.IO rooms live in memory. The Redis adapter is the path to more replicas.
+- **Free-tier hosting.** Cold starts are accepted, and a wake-up notice explains them.
+
+## What I'd do next
+
+- Add the Socket.IO Redis adapter and run two API replicas behind a load balancer.
+- Make rate limiting fail open with a short Redis command timeout, so a Redis outage doesn't block sign-in.
+- Add notifications, read receipts and typing indicators.
+- Add follows and a personalised feed, plus full-text search with Postgres `tsvector`.
+- Add OpenTelemetry traces across HTTP, sockets and the database.
 
 ## Scripts
 
-| Script                     | What it does                         |
-| -------------------------- | ------------------------------------ |
-| `npm run start:dev`        | Dev server with watch                |
-| `npm run build`            | Compile to `dist/`                   |
-| `npm run check`            | Type-check, ESLint and Prettier      |
-| `npm test`                 | Unit tests                           |
-| `npm run test:e2e`         | E2E tests against `DATABASE_URL`     |
-| `npm run db:generate`      | Generate a migration from the schema |
-| `npm run db:migrate`       | Apply migrations                     |
-| `npm run db:seed`          | Demo data                            |
-| `npm run openapi:generate` | Regenerate `openapi.json`            |
+| Script                           | What it does                         |
+| -------------------------------- | ------------------------------------ |
+| `npm run start:dev`              | Dev server with watch                |
+| `npm run build`                  | Compile to `dist/`                   |
+| `npm run check`                  | Type-check, ESLint and Prettier      |
+| `npm test` / `npm run test:e2e`  | Unit / e2e tests                     |
+| `npm run db:generate`            | Generate a migration from the schema |
+| `npm run db:migrate` / `db:seed` | Apply migrations / load demo data    |
+| `npm run openapi:generate`       | Regenerate `openapi.json`            |
+
+## License
+
+[MIT](LICENSE) © Oleksandr Uvarov
