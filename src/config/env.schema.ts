@@ -15,6 +15,11 @@ const optionalWhenEmpty = <Schema extends z.ZodType>(schema: Schema) =>
     schema.optional(),
   );
 
+const flag = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.stringbool().default(false),
+);
+
 const envObjectSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -24,6 +29,7 @@ const envObjectSchema = z.object({
   CORS_ORIGIN: z.url().default('http://localhost:3001'),
   DATABASE_URL: z.url(),
   REDIS_URL: optionalWhenEmpty(z.url()),
+  RATE_LIMIT_DISABLED: flag,
   JWT_ACCESS_SECRET: secret,
   REFRESH_TOKEN_SECRET: secret,
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
@@ -33,6 +39,14 @@ const envObjectSchema = z.object({
 });
 
 const envSchema = envObjectSchema.superRefine((env, context) => {
+  if (env.NODE_ENV === 'production' && env.RATE_LIMIT_DISABLED) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RATE_LIMIT_DISABLED'],
+      message: 'must not be set in production',
+    });
+  }
+
   if (env.STORAGE_DRIVER !== 'supabase') return;
 
   for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const) {

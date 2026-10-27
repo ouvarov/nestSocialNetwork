@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -9,7 +9,7 @@ import { JwtAuthGuard } from './auth/auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { AppThrottlerGuard } from './common/guards/throttler.guard';
-import { validateEnv } from './config/env.schema';
+import { type Env, validateEnv } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MessageModule } from './message/message.module';
@@ -33,9 +33,10 @@ const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
     }),
     RedisModule,
     ThrottlerModule.forRootAsync({
-      inject: [REDIS_CLIENT],
-      useFactory: (redis: Redis | null) => ({
+      inject: [REDIS_CLIENT, ConfigService],
+      useFactory: (redis: Redis | null, config: ConfigService<Env, true>) => ({
         throttlers: [DEFAULT_RATE_LIMIT],
+        skipIf: () => config.get('RATE_LIMIT_DISABLED', { infer: true }),
         storage: redis ? new ThrottlerStorageRedisService(redis) : undefined,
       }),
     }),

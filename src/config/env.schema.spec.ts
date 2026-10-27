@@ -41,6 +41,30 @@ describe('validateEnv', () => {
     );
   });
 
+  it('keeps rate limiting on unless it is switched off explicitly', () => {
+    expect(validateEnv(validEnv).RATE_LIMIT_DISABLED).toBe(false);
+    expect(
+      validateEnv({ ...validEnv, RATE_LIMIT_DISABLED: '' }).RATE_LIMIT_DISABLED,
+    ).toBe(false);
+    expect(
+      validateEnv({ ...validEnv, RATE_LIMIT_DISABLED: 'true' })
+        .RATE_LIMIT_DISABLED,
+    ).toBe(true);
+    expect(() =>
+      validateEnv({ ...validEnv, RATE_LIMIT_DISABLED: 'maybe' }),
+    ).toThrow(/RATE_LIMIT_DISABLED/);
+  });
+
+  it('refuses to switch rate limiting off in production', () => {
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        RATE_LIMIT_DISABLED: 'true',
+      }),
+    ).toThrow(/must not be set in production[\s\S]*RATE_LIMIT_DISABLED/);
+  });
+
   it('rejects a port that is not a number', () => {
     expect(() => validateEnv({ ...validEnv, PORT: 'abc' })).toThrow(/PORT/);
   });
