@@ -1,7 +1,7 @@
 import * as bcrypt from 'bcryptjs';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import * as postgres from 'postgres';
+import postgres from 'postgres';
 import { z } from 'zod';
 
 import { ChatMembers } from './schemas/chatMembers.schema';

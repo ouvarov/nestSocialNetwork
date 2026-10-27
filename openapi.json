@@ -94,13 +94,13 @@
             "description": "Missing, expired, revoked or reused refresh token"
           }
         },
-        "tags": [
-          "Auth"
-        ],
         "security": [
           {
             "refresh_token": []
           }
+        ],
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -113,13 +113,13 @@
             "description": ""
           }
         },
-        "tags": [
-          "Auth"
-        ],
         "security": [
           {
             "refresh_token": []
           }
+        ],
+        "tags": [
+          "Auth"
         ]
       }
     },
@@ -142,13 +142,13 @@
             }
           }
         },
-        "tags": [
-          "Users"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Users"
         ]
       }
     },
@@ -180,13 +180,13 @@
             "description": "User not found"
           }
         },
-        "tags": [
-          "Users"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Users"
         ]
       }
     },
@@ -216,13 +216,13 @@
             }
           }
         },
-        "tags": [
-          "Posts"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Posts"
         ]
       }
     },
@@ -270,13 +270,13 @@
             }
           }
         },
-        "tags": [
-          "Posts"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Posts"
         ]
       }
     },
@@ -308,13 +308,13 @@
             "description": "Post not found"
           }
         },
-        "tags": [
-          "Posts"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Posts"
         ]
       },
       "delete": {
@@ -344,13 +344,13 @@
             "description": "Post not found"
           }
         },
-        "tags": [
-          "Posts"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Posts"
         ]
       }
     },
@@ -375,13 +375,13 @@
             "description": "Post not found or not yours"
           }
         },
-        "tags": [
-          "Posts"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Posts"
         ]
       }
     },
@@ -414,13 +414,13 @@
             "description": "Chat not found or not a member"
           }
         },
-        "tags": [
-          "Chat"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Chat"
         ]
       }
     },
@@ -446,13 +446,13 @@
             "description": "Chat not found or not a member"
           }
         },
-        "tags": [
-          "Chat"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Chat"
         ]
       }
     },
@@ -484,13 +484,13 @@
             "description": "Chat not found or not a member"
           }
         },
-        "tags": [
-          "Chat"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Chat"
         ]
       }
     },
@@ -523,13 +523,13 @@
             "description": "Chat not found or not a member"
           }
         },
-        "tags": [
-          "Chat"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Chat"
         ]
       }
     },
@@ -554,13 +554,13 @@
             "description": "Chat not found or not a member"
           }
         },
-        "tags": [
-          "Chat"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Chat"
         ]
       }
     },
@@ -605,13 +605,13 @@
             "description": "Not a PNG, JPEG, WebP or GIF"
           }
         },
-        "tags": [
-          "Upload"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "Upload"
         ]
       }
     },
