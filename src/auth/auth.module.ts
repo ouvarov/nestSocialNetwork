@@ -7,9 +7,11 @@ import type { Env } from '@/config/env.schema';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { RefreshTokenCleanupService } from './refresh-token-cleanup.service';
 
 import { UserModule } from '@/user/user.module';
 import { DatabaseModule } from '@/database/database.module';
+import { RealtimeModule } from '@/realtime/realtime.module';
 import { AuthDatabaseService } from '@/database/auth-database.service';
 import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
 
@@ -21,6 +23,7 @@ const ACCESS_TOKEN_TTL = '15m';
     AuthService,
     AuthDatabaseService,
     RefreshTokenDatabaseService,
+    RefreshTokenCleanupService,
   ],
   controllers: [AuthController],
   imports: [
@@ -35,6 +38,7 @@ const ACCESS_TOKEN_TTL = '15m';
     }),
     UserModule,
     DatabaseModule,
+    RealtimeModule,
   ],
   exports: [JwtModule],
 })

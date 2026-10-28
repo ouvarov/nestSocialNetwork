@@ -1,10 +1,14 @@
-import { type ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  type ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import type { Socket } from 'socket.io';
 
 import { IS_PUBLIC_KEY } from './public.decorator';
-import { findSocketUser } from './socket-user';
+import { findSocketSession, isSessionAlive } from './socket-user';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -21,9 +25,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (isPublic) return true;
 
     if (context.getType() === 'ws') {
-      return Boolean(findSocketUser(context.switchToWs().getClient<Socket>()));
+      return this.canActivateSocket(context.switchToWs().getClient<Socket>());
     }
 
     return super.canActivate(context);
+  }
+
+  private canActivateSocket(client: Socket): boolean {
+    if (isSessionAlive(findSocketSession(client))) return true;
+
+    client.disconnect(true);
+    throw new UnauthorizedException('Access token expired');
   }
 }

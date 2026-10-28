@@ -11,6 +11,7 @@ import type {
 } from '@/database/refresh-token-database.service';
 import type { RefreshToken } from '@/database/schemas/refreshTokens.schema';
 import type { User } from '@/database/schemas/users.schema';
+import type { UserSocketsService } from '@/realtime/user-sockets.service';
 import type { UserService } from '@/user/user.service';
 
 import { AuthService } from '../auth.service';
@@ -95,10 +96,6 @@ const createRefreshTokenStore = () => {
       tokens.set(nextToken.tokenId, toRecord(nextToken));
       return Promise.resolve(true);
     },
-    revoke: (tokenId: string) => {
-      revokeWhere((token) => token.token_id === tokenId);
-      return Promise.resolve();
-    },
     revokeFamily: (familyId: string) => {
       revokeWhere((token) => token.family_id === familyId);
       return Promise.resolve();
@@ -115,6 +112,10 @@ const createAuthService = () => {
     secret: ACCESS_SECRET,
     signOptions: { expiresIn: '15m' },
   });
+  const disconnectedUserIds: string[] = [];
+  const userSocketsService = {
+    disconnectUser: (userId: string) => disconnectedUserIds.push(userId),
+  };
   const configService = {
     get: (key: keyof Env) =>
       key === 'REFRESH_TOKEN_SECRET' ? REFRESH_SECRET : undefined,
@@ -125,10 +126,11 @@ const createAuthService = () => {
     userService as unknown as UserService,
     authDatabaseService as unknown as AuthDatabaseService,
     store as unknown as RefreshTokenDatabaseService,
+    userSocketsService as unknown as UserSocketsService,
     configService as unknown as ConfigService<Env, true>,
   );
 
-  return { authService, jwtService, tokens };
+  return { authService, jwtService, tokens, disconnectedUserIds };
 };
 
 const GRACE_WINDOW_PASSED_MS = 11_000;
@@ -224,8 +226,9 @@ describe('AuthService', () => {
     });
 
     it('treats a reused refresh token as theft and revokes the whole family', async () => {
-      const { authService, tokens } = createAuthService();
-      const { refreshToken: stolenToken } = await registerAda(authService);
+      const { authService, tokens, disconnectedUserIds } = createAuthService();
+      const { refreshToken: stolenToken, user } =
+        await registerAda(authService);
       const { refreshToken: currentToken } =
         await authService.refresh(stolenToken);
       ageRotations(tokens);
@@ -233,6 +236,7 @@ describe('AuthService', () => {
       await expect(authService.refresh(stolenToken)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
+      expect(disconnectedUserIds).toEqual([user.id]);
       await expect(authService.refresh(currentToken)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
@@ -296,6 +300,30 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
+    it('revokes every token of the session family', async () => {
+      const { authService } = createAuthService();
+      const { refreshToken } = await registerAda(authService);
+      const [firstTab, secondTab] = await Promise.all([
+        authService.refresh(refreshToken),
+        authService.refresh(refreshToken),
+      ]);
+
+      await authService.logout(firstTab.refreshToken);
+
+      await expect(
+        authService.refresh(secondTab.refreshToken),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('closes the sockets of the user', async () => {
+      const { authService, disconnectedUserIds } = createAuthService();
+      const { refreshToken, user } = await registerAda(authService);
+
+      await authService.logout(refreshToken);
+
+      expect(disconnectedUserIds).toEqual([user.id]);
+    });
+
     it('revokes the refresh token', async () => {
       const { authService } = createAuthService();
       const { refreshToken } = await registerAda(authService);

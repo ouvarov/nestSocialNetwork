@@ -92,12 +92,12 @@ const createPost = async (
 const createChat = async (
   app: NestExpressApplication,
   user: TestUser,
-  others: TestUser[],
+  peer: TestUser,
 ) => {
   const response = await api(app)
     .post('/api/chat/create')
     .set(bearer(user))
-    .send({ userIds: others.map(({ id }) => id) })
+    .send({ userId: peer.id })
     .expect(201);
 
   return (response.body as ChatIdDto).chatId;
@@ -126,6 +126,35 @@ const nextEvent = <T>(socket: Socket, event: string, timeoutMs = 5000) =>
     });
   });
 
+const emitWithAck = <T>(socket: Socket, event: string, payload: unknown) =>
+  socket.timeout(5000).emitWithAck(event, payload) as Promise<T>;
+
+const sendMessage = async (
+  app: NestExpressApplication,
+  user: TestUser,
+  chatId: string,
+  content: string,
+) => {
+  const socket = connectSocket(app, user.accessToken);
+
+  try {
+    await nextEvent(socket, 'connect');
+    return await emitWithAck<{ ok: boolean }>(socket, 'createMessage', {
+      chatId,
+      content,
+    });
+  } finally {
+    socket.disconnect();
+  }
+};
+
+const deleteAccount = (app: NestExpressApplication, user: TestUser) =>
+  api(app)
+    .delete('/api/users/me')
+    .set(bearer(user))
+    .send({ password: PASSWORD })
+    .expect(204);
+
 const removeUploads = (user: TestUser) =>
   rm(join(LOCAL_UPLOADS_DIR, userImagesDir(user.id)), {
     recursive: true,
@@ -140,10 +169,13 @@ export {
   createChat,
   createPost,
   createTestApp,
+  deleteAccount,
+  emitWithAck,
   nextEvent,
   refreshCookieOf,
   registerUser,
   removeUploads,
+  sendMessage,
   uniqueEmail,
 };
 export type { TestUser };

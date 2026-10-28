@@ -1,13 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Messages } from '@/database/schemas/messages.schema';
 
 @Injectable()
 export class MessageDatabaseService {
-  constructor(
-    @Inject('DRIZZLE_ORM')
-    private readonly Drizzle: ReturnType<typeof drizzle>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   async createMessage({
     chatId,
@@ -18,7 +15,8 @@ export class MessageDatabaseService {
     senderId: string;
     content: string;
   }) {
-    const [message] = await this.Drizzle.insert(Messages)
+    const [message] = await this.db
+      .insert(Messages)
       .values({
         chat_id: chatId,
         sender_id: senderId,

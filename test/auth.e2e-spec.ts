@@ -60,10 +60,58 @@ describe('register', () => {
       .expect(409);
   });
 
+  it('treats emails that differ only in case as the same account', async () => {
+    const localPart = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    await api(app)
+      .post('/api/auth/register')
+      .send({
+        email: `${localPart.toUpperCase()}@Example.com`,
+        password: PASSWORD,
+        userName: 'Bob',
+      })
+      .expect(201);
+    await api(app)
+      .post('/api/auth/register')
+      .send({
+        email: `${localPart}@example.com`,
+        password: PASSWORD,
+        userName: 'Bob again',
+      })
+      .expect(409);
+    await api(app)
+      .post('/api/auth/login')
+      .send({ email: ` ${localPart}@EXAMPLE.com `, password: PASSWORD })
+      .expect(200);
+  });
+
+  it('trims the name', async () => {
+    const response = await api(app)
+      .post('/api/auth/register')
+      .send({ email: uniqueEmail(), password: PASSWORD, userName: '  Ada  ' })
+      .expect(201);
+
+    expect((response.body as AuthResponseDto).userData.userName).toBe('Ada');
+  });
+
+  it('accepts a 72-byte password and a 50-character name', async () => {
+    await api(app)
+      .post('/api/auth/register')
+      .send({
+        email: uniqueEmail(),
+        password: 'ж'.repeat(36),
+        userName: 'a'.repeat(50),
+      })
+      .expect(201);
+  });
+
   it.each([
     ['a short password', { password: 'short' }],
+    ['a password over 72 bytes', { password: 'ж'.repeat(36) + 'a' }],
     ['an invalid email', { email: 'not-an-email' }],
     ['an empty name', { userName: '' }],
+    ['a blank name', { userName: '   ' }],
+    ['a name over 50 characters', { userName: 'a'.repeat(51) }],
     ['an unknown field', { isAdmin: true }],
   ])('rejects %s', async (_case, override) => {
     await api(app)

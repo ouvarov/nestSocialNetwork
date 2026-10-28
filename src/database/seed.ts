@@ -100,7 +100,10 @@ const seed = async () => {
 
       const [chat] = await tx
         .insert(Chats)
-        .values({ chat_name: 'Ada Lovelace, Linus Torvalds' })
+        .values({
+          kind: 'direct',
+          pair_key: [ada.id, linus.id].sort().join(':'),
+        })
         .returning({ id: Chats.chat_id });
 
       await tx.insert(ChatMembers).values([

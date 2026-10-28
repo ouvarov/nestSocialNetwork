@@ -24,6 +24,7 @@ const createUploadService = () => {
       return Promise.resolve(`https://cdn.test/${path}`);
     },
     publicUrl: (path: string) => `https://cdn.test/${path}`,
+    removeDirectory: () => Promise.resolve(),
   };
 
   return {

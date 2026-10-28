@@ -3,19 +3,25 @@ import type { Socket } from 'socket.io';
 
 import type { AuthUser } from './current-user.decorator';
 
-type SocketData = { user?: AuthUser };
+type SocketSession = { user: AuthUser; expiresAtEpochMs: number };
 
-const findSocketUser = (client: Socket): AuthUser | undefined =>
-  (client.data as SocketData).user;
+type SocketData = { session?: SocketSession };
+
+const findSocketSession = (client: Socket): SocketSession | undefined =>
+  (client.data as SocketData).session;
+
+const isSessionAlive = (session: SocketSession | undefined) =>
+  session !== undefined && session.expiresAtEpochMs > Date.now();
 
 const getSocketUser = (client: Socket): AuthUser => {
-  const user = findSocketUser(client);
-  if (!user) throw new WsException('Unauthorized');
-  return user;
+  const session = findSocketSession(client);
+  if (!session) throw new WsException('Unauthorized');
+  return session.user;
 };
 
-const setSocketUser = (client: Socket, user: AuthUser) => {
-  (client.data as SocketData).user = user;
+const setSocketSession = (client: Socket, session: SocketSession) => {
+  (client.data as SocketData).session = session;
 };
 
-export { findSocketUser, getSocketUser, setSocketUser };
+export { findSocketSession, getSocketUser, isSessionAlive, setSocketSession };
+export type { SocketSession };

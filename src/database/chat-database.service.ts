@@ -1,23 +1,69 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gt,
+  isNull,
+  ne,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
+import type { Cursor } from '@/common/pagination/cursor';
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
-import { Users } from '@/database/schemas/users.schema';
 import { Chats } from '@/database/schemas/chats.schema';
 import { Messages } from '@/database/schemas/messages.schema';
+import { Users } from '@/database/schemas/users.schema';
 
-type ChatSummary = { chatId: string; chatName: string | null };
+type ChatPeer = { id: string; userName: string; imageUrl: string | null };
+
+type ChatSummary = {
+  chatId: string;
+  peer: ChatPeer | null;
+  lastMessageAt: Date | null;
+};
+
+type ChatHeader = { chatId: string; peer: ChatPeer | null };
+
+type MessageRow = {
+  messageId: string;
+  senderId: string | null;
+  content: string;
+  sentAt: Date;
+  sentCursor: string;
+};
+
+const PeerMembers = alias(ChatMembers, 'peer_members');
+
+const lastMessageAt =
+  sql<Date | null>`(select max(${Messages.sent_at}) from ${Messages} where ${Messages.chat_id} = ${Chats.chat_id})`.mapWith(
+    Messages.sent_at,
+  );
+
+const peerColumns = {
+  id: Users.user_id,
+  userName: Users.user_name,
+  imageUrl: Users.image_url,
+};
+
+const toPairKey = (userId: string, peerId: string) =>
+  [userId, peerId]
+    .map((id) => id.toLowerCase())
+    .sort()
+    .join(':');
 
 @Injectable()
 export class ChatDatabaseService {
-  constructor(
-    @Inject('DRIZZLE_ORM')
-    private readonly Drizzle: ReturnType<typeof drizzle>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   async isMember(chatId: string, userId: string): Promise<boolean> {
-    const [member] = await this.Drizzle.select({ chatId: ChatMembers.chat_id })
+    const [member] = await this.db
+      .select({ chatId: ChatMembers.chat_id })
       .from(ChatMembers)
       .where(
         and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
@@ -27,99 +73,183 @@ export class ChatDatabaseService {
     return member !== undefined;
   }
 
-  async findChatWithExactMembers(memberIds: string[]): Promise<string | null> {
-    const [creatorId] = memberIds;
-    const chatsOfCreator = this.Drizzle.select({ chatId: ChatMembers.chat_id })
+  async findMemberIds(chatId: string): Promise<string[]> {
+    const members = await this.db
+      .select({ userId: ChatMembers.user_id })
       .from(ChatMembers)
-      .where(eq(ChatMembers.user_id, creatorId));
+      .where(eq(ChatMembers.chat_id, chatId));
 
-    const [chat] = await this.Drizzle.select({ chatId: ChatMembers.chat_id })
-      .from(ChatMembers)
-      .where(inArray(ChatMembers.chat_id, chatsOfCreator))
-      .groupBy(ChatMembers.chat_id)
-      .having(
-        and(
-          sql`count(*) = ${memberIds.length}`,
-          sql`count(*) filter (where ${inArray(ChatMembers.user_id, memberIds)}) = ${memberIds.length}`,
-        ),
-      )
-      .limit(1);
-
-    return chat?.chatId ?? null;
+    return members.map(({ userId }) => userId);
   }
 
-  async createChat(memberIds: string[]): Promise<string> {
-    const members = await this.Drizzle.select({ userName: Users.user_name })
-      .from(Users)
-      .where(inArray(Users.user_id, memberIds))
-      .orderBy(Users.user_name);
-    const chatName = members.map(({ userName }) => userName).join(', ');
+  findOrCreateDirectChat(userId: string, peerId: string): Promise<string> {
+    const pairKey = toPairKey(userId, peerId);
 
-    return this.Drizzle.transaction(async (tx) => {
-      const [chat] = await tx
+    return this.db.transaction(async (tx) => {
+      const [created] = await tx
         .insert(Chats)
-        .values({ chat_name: chatName })
+        .values({ kind: 'direct', pair_key: pairKey })
+        .onConflictDoNothing()
         .returning({ chatId: Chats.chat_id });
 
-      await tx.insert(ChatMembers).values(
-        memberIds.map((userId) => ({
-          chat_id: chat.chatId,
-          user_id: userId,
-        })),
-      );
+      if (created) {
+        await tx.insert(ChatMembers).values([
+          { chat_id: created.chatId, user_id: userId },
+          { chat_id: created.chatId, user_id: peerId },
+        ]);
+        return created.chatId;
+      }
 
-      return chat.chatId;
+      const [existing] = await tx
+        .select({ chatId: Chats.chat_id })
+        .from(Chats)
+        .where(and(eq(Chats.kind, 'direct'), eq(Chats.pair_key, pairKey)));
+
+      return existing.chatId;
     });
   }
 
-  async getChatsOfUser(userId: string): Promise<ChatSummary[]> {
-    return this.Drizzle.select({
-      chatId: Chats.chat_id,
-      chatName: Chats.chat_name,
-    })
-      .from(Chats)
-      .innerJoin(ChatMembers, eq(ChatMembers.chat_id, Chats.chat_id))
-      .where(eq(ChatMembers.user_id, userId))
-      .orderBy(desc(Chats.created_at));
+  getChatsOfUser(userId: string): Promise<ChatSummary[]> {
+    return this.db
+      .select({ chatId: Chats.chat_id, peer: peerColumns, lastMessageAt })
+      .from(ChatMembers)
+      .innerJoin(Chats, eq(Chats.chat_id, ChatMembers.chat_id))
+      .leftJoin(
+        PeerMembers,
+        and(
+          eq(PeerMembers.chat_id, ChatMembers.chat_id),
+          ne(PeerMembers.user_id, ChatMembers.user_id),
+        ),
+      )
+      .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
+      .where(
+        and(
+          eq(ChatMembers.user_id, userId),
+          or(
+            isNull(ChatMembers.cleared_at),
+            gt(lastMessageAt, ChatMembers.cleared_at),
+          ),
+        ),
+      )
+      .orderBy(
+        desc(sql`coalesce(${lastMessageAt}, ${Chats.created_at})`),
+        desc(Chats.chat_id),
+      );
   }
 
-  async getChatWithMessages(chatId: string) {
-    const [chat] = await this.Drizzle.select({ chatName: Chats.chat_name })
-      .from(Chats)
-      .where(eq(Chats.chat_id, chatId));
-
-    if (!chat) return null;
-
-    const messages = await this.Drizzle.select({
-      messageId: Messages.message_id,
-      senderId: Messages.sender_id,
-      content: Messages.content,
-      sentAt: Messages.sent_at,
-    })
-      .from(Messages)
-      .where(eq(Messages.chat_id, chatId))
-      .orderBy(Messages.sent_at);
-
-    return { chatName: chat.chatName ?? '', messages };
-  }
-
-  async deleteChat(chatId: string): Promise<string | null> {
-    const [chat] = await this.Drizzle.delete(Chats)
-      .where(eq(Chats.chat_id, chatId))
-      .returning({ chatId: Chats.chat_id });
-
-    return chat?.chatId ?? null;
-  }
-
-  async updateChatName(
+  async findChatHeader(
     chatId: string,
-    chatName: string,
-  ): Promise<ChatSummary | null> {
-    const [chat] = await this.Drizzle.update(Chats)
-      .set({ chat_name: chatName })
-      .where(eq(Chats.chat_id, chatId))
-      .returning({ chatId: Chats.chat_id, chatName: Chats.chat_name });
+    userId: string,
+  ): Promise<ChatHeader | null> {
+    const [chat] = await this.db
+      .select({ chatId: ChatMembers.chat_id, peer: peerColumns })
+      .from(ChatMembers)
+      .leftJoin(
+        PeerMembers,
+        and(
+          eq(PeerMembers.chat_id, ChatMembers.chat_id),
+          ne(PeerMembers.user_id, ChatMembers.user_id),
+        ),
+      )
+      .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
+      .where(
+        and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
+      );
 
     return chat ?? null;
   }
+
+  findMessages({
+    chatId,
+    userId,
+    limit,
+    cursor,
+  }: {
+    chatId: string;
+    userId: string;
+    limit: number;
+    cursor?: Cursor;
+  }): Promise<MessageRow[]> {
+    const isBeforeCursor = cursor
+      ? sql`(${Messages.sent_at}, ${Messages.message_id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
+      : undefined;
+
+    return this.db
+      .select({
+        messageId: Messages.message_id,
+        senderId: Messages.sender_id,
+        content: Messages.content,
+        sentAt: Messages.sent_at,
+        sentCursor: sql<string>`${Messages.sent_at}::text`,
+      })
+      .from(Messages)
+      .innerJoin(
+        ChatMembers,
+        and(
+          eq(ChatMembers.chat_id, Messages.chat_id),
+          eq(ChatMembers.user_id, userId),
+        ),
+      )
+      .where(
+        and(
+          eq(Messages.chat_id, chatId),
+          or(
+            isNull(ChatMembers.cleared_at),
+            gt(Messages.sent_at, ChatMembers.cleared_at),
+          ),
+          isBeforeCursor,
+        ),
+      )
+      .orderBy(desc(Messages.sent_at), desc(Messages.message_id))
+      .limit(limit + 1);
+  }
+
+  clearChat(chatId: string, userId: string): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .select({ chatId: Chats.chat_id })
+        .from(Chats)
+        .where(eq(Chats.chat_id, chatId))
+        .for('update');
+
+      const cleared = await tx
+        .update(ChatMembers)
+        .set({ cleared_at: sql`now()` })
+        .where(
+          and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
+        )
+        .returning({ chatId: ChatMembers.chat_id });
+
+      if (cleared.length === 0) return false;
+
+      const messagesAfterClear = tx
+        .select({ messageId: Messages.message_id })
+        .from(Messages)
+        .where(
+          and(
+            eq(Messages.chat_id, ChatMembers.chat_id),
+            gt(Messages.sent_at, ChatMembers.cleared_at),
+          ),
+        );
+      const membersStillSeeingHistory = tx
+        .select({ userId: ChatMembers.user_id })
+        .from(ChatMembers)
+        .where(
+          and(
+            eq(ChatMembers.chat_id, Chats.chat_id),
+            or(isNull(ChatMembers.cleared_at), exists(messagesAfterClear)),
+          ),
+        );
+
+      await tx
+        .delete(Chats)
+        .where(
+          and(eq(Chats.chat_id, chatId), notExists(membersStillSeeingHistory)),
+        );
+
+      return true;
+    });
+  }
 }
+
+export type { ChatHeader, ChatPeer, ChatSummary, MessageRow };

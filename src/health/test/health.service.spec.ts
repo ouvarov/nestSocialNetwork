@@ -1,5 +1,6 @@
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type Redis from 'ioredis';
+
+import type { Database } from '@/database/drizzle';
 
 import { HealthService } from '../health.service';
 
@@ -11,7 +12,7 @@ const createHealthService = (
   redis: (() => Promise<unknown>) | null,
 ) =>
   new HealthService(
-    { execute: database } as unknown as PostgresJsDatabase,
+    { execute: database } as unknown as Database,
     redis ? ({ ping: redis } as unknown as Redis) : null,
   );
 

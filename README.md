@@ -22,17 +22,20 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
 - **Auth**:
   - a short-lived access token;
   - rotating refresh tokens in an httpOnly cookie, with reuse detection that revokes the whole session;
-  - logout revokes the token.
+  - logout revokes the session and closes its sockets;
+  - emails are case-insensitive, passwords are capped at bcrypt's 72 bytes.
+- **Account deletion** behind the password: posts and likes go, messages stay in the other person's chat without a sender, uploads are removed.
 - **Posts with images:**
   - uploads go to Supabase Storage (local disk in dev);
   - the type is checked from the file bytes, with a 5 MB limit;
   - a post can only use images its author uploaded.
 - **Feed:** cursor pagination that stays stable while new posts arrive. Likes are idempotent and report `likedByMe` per viewer.
-- **Chats:**
-  - creating a chat with the same members returns the existing one;
-  - members can rename or delete it;
+- **Direct chats:**
+  - one chat per pair, enforced by a unique key, so a double click can't create two;
+  - "delete for me" hides the history only for you; the chat comes back on a new message and is removed once nobody sees it;
+  - history and the people list are cursor-paginated;
   - a non-member gets 404, as if the chat didn't exist.
-- **Live messages** over Socket.IO: JWT handshake, rooms per chat, acks, validation.
+- **Live messages** over Socket.IO: JWT handshake, sockets closed at token expiry and on logout, every event answered in its ack, validation.
 - **Rate limits** stored in Redis:
   - 5 sign-in attempts per minute per visitor;
   - chat events limited per user;
@@ -127,7 +130,8 @@ npm run test:e2e   # 74 e2e tests; needs DATABASE_URL and a migrated database
   - auth flows and refresh reuse;
   - posts, likes and pagination;
   - uploads;
-  - chat membership rules;
+  - direct chats, delete for me and history pages;
+  - account deletion;
   - live messages;
   - rate limits and the proxy check;
   - CORS and health.

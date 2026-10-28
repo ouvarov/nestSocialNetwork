@@ -126,17 +126,34 @@
     "/api/users": {
       "get": {
         "operationId": "UserController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Each list has its own default page size",
+            "schema": {
+              "maximum": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserResponseDto"
-                  }
+                  "$ref": "#/components/schemas/UserPageDto"
                 }
               }
             }
@@ -178,6 +195,41 @@
           },
           "404": {
             "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/users/me": {
+      "delete": {
+        "operationId": "UserController_deleteMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Deletes the account, its posts and likes; messages stay with the other person without a sender"
+          },
+          "401": {
+            "description": "Wrong password"
+          },
+          "429": {
+            "description": ""
           }
         },
         "security": [
@@ -242,9 +294,9 @@
             "name": "limit",
             "required": false,
             "in": "query",
+            "description": "Each list has its own default page size",
             "schema": {
               "maximum": 50,
-              "default": 10,
               "type": "number"
             }
           },
@@ -401,7 +453,7 @@
         },
         "responses": {
           "201": {
-            "description": "The existing chat when one has exactly these members",
+            "description": "The existing chat when you already have one with this user",
             "content": {
               "application/json": {
                 "schema": {
@@ -409,6 +461,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "A chat with yourself"
           },
           "404": {
             "description": "Chat not found or not a member"
@@ -430,7 +485,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
+            "description": "Most recent first; chats you cleared come back on a new message",
             "content": {
               "application/json": {
                 "schema": {
@@ -494,27 +549,45 @@
         ]
       }
     },
-    "/api/chat/update": {
-      "put": {
-        "operationId": "ChatController_update",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateChatDto"
-              }
+    "/api/chat/{id}/messages": {
+      "get": {
+        "operationId": "ChatController_findMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Each list has its own default page size",
+            "schema": {
+              "maximum": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatSummaryDto"
+                  "$ref": "#/components/schemas/MessagePageDto"
                 }
               }
             }
@@ -548,7 +621,7 @@
         ],
         "responses": {
           "204": {
-            "description": ""
+            "description": "Clears the history for you only; the chat is removed once nobody sees it"
           },
           "404": {
             "description": "Chat not found or not a member"
@@ -699,11 +772,14 @@
           },
           "password": {
             "type": "string",
-            "example": "correct-horse-battery"
+            "example": "correct-horse-battery",
+            "minLength": 8,
+            "description": "At most 72 bytes in UTF-8, the bcrypt limit"
           },
           "userName": {
             "type": "string",
-            "example": "Ada Lovelace"
+            "example": "Ada Lovelace",
+            "maxLength": 50
           }
         },
         "required": [
@@ -773,6 +849,39 @@
         },
         "required": [
           "email",
+          "password"
+        ]
+      },
+      "UserPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Newest members first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserResponseDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as cursor to get the next page; null on the last page"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DeleteAccountDto": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "The current password, to confirm"
+          }
+        },
+        "required": [
           "password"
         ]
       },
@@ -856,17 +965,14 @@
       "CreateChatDto": {
         "type": "object",
         "properties": {
-          "userIds": {
-            "description": "Other members; the caller is always added",
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The other person; a chat with yourself is rejected"
           }
         },
         "required": [
-          "userIds"
+          "userId"
         ]
       },
       "ChatIdDto": {
@@ -881,6 +987,28 @@
           "chatId"
         ]
       },
+      "ChatPeerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "userName",
+          "imageUrl"
+        ]
+      },
       "ChatSummaryDto": {
         "type": "object",
         "properties": {
@@ -888,14 +1016,54 @@
             "type": "string",
             "format": "uuid"
           },
-          "chatName": {
+          "peer": {
+            "nullable": true,
+            "description": "null when the other person deleted their account",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatPeerDto"
+              }
+            ]
+          },
+          "lastMessageAt": {
+            "format": "date-time",
             "type": "string",
             "nullable": true
           }
         },
         "required": [
           "chatId",
-          "chatName"
+          "peer",
+          "lastMessageAt"
+        ]
+      },
+      "ChatDto": {
+        "type": "object",
+        "properties": {
+          "chatId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "peer": {
+            "nullable": true,
+            "description": "null when the other person deleted their account",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatPeerDto"
+              }
+            ]
+          },
+          "canSend": {
+            "type": "boolean",
+            "description": "false when the other person is gone"
+          }
+        },
+        "required": [
+          "chatId",
+          "peer",
+          "canSend"
         ]
       },
       "ChatMessageDto": {
@@ -907,7 +1075,9 @@
           },
           "senderId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true,
+            "description": "null when the sender deleted their account"
           },
           "content": {
             "type": "string"
@@ -924,40 +1094,25 @@
           "sentAt"
         ]
       },
-      "ChatDto": {
+      "MessagePageDto": {
         "type": "object",
         "properties": {
-          "chatName": {
-            "type": "string",
-            "description": "Empty string when the chat has no name"
-          },
-          "messages": {
+          "items": {
+            "description": "Newest first; only messages after you cleared the chat",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ChatMessageDto"
             }
-          }
-        },
-        "required": [
-          "chatName",
-          "messages"
-        ]
-      },
-      "UpdateChatDto": {
-        "type": "object",
-        "properties": {
-          "chatId": {
-            "type": "string",
-            "format": "uuid"
           },
-          "newChatName": {
+          "nextCursor": {
             "type": "string",
-            "example": "Weekend plans"
+            "nullable": true,
+            "description": "Pass as cursor to get older messages; null on the last page"
           }
         },
         "required": [
-          "chatId",
-          "newChatName"
+          "items",
+          "nextCursor"
         ]
       },
       "UploadResponseDto": {

@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type Redis from 'ioredis';
 
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { REDIS_CLIENT } from '@/redis/redis.module';
 
 import type { DependencyStatus, ReadinessDto } from './dto/health-response.dto';
@@ -21,7 +21,7 @@ const probe = async (
 @Injectable()
 export class HealthService {
   constructor(
-    @Inject('DRIZZLE_ORM') private readonly db: PostgresJsDatabase,
+    @Inject(DRIZZLE) private readonly db: Database,
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
   ) {}
 

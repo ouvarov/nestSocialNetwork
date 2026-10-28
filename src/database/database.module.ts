@@ -1,17 +1,18 @@
 import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import type { Env } from '@/config/env.schema';
-import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { UserDatabaseOrmService } from '@/database/user-database.service';
+import postgres from 'postgres';
 
-const DATABASE_POOL = 'DATABASE_POOL';
+import type { Env } from '@/config/env.schema';
+
+import { DRIZZLE } from './drizzle';
+
+const DATABASE_POOL = Symbol('DATABASE_POOL');
 const SHUTDOWN_TIMEOUT_SECONDS = 5;
 
 @Module({
   imports: [ConfigModule],
   providers: [
-    UserDatabaseOrmService,
     {
       provide: DATABASE_POOL,
       useFactory: (configService: ConfigService<Env, true>) => {
@@ -23,12 +24,12 @@ const SHUTDOWN_TIMEOUT_SECONDS = 5;
       inject: [ConfigService],
     },
     {
-      provide: 'DRIZZLE_ORM',
+      provide: DRIZZLE,
       useFactory: (sqlClient: postgres.Sql) => drizzle(sqlClient),
       inject: [DATABASE_POOL],
     },
   ],
-  exports: [UserDatabaseOrmService, 'DRIZZLE_ORM'],
+  exports: [DRIZZLE],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(

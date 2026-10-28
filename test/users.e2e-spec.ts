@@ -1,6 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
-import type { UserResponseDto } from '@/user/dto/user-response.dto';
+import type { UserPageDto } from '@/user/dto/user-response.dto';
 
 import { api, bearer, createTestApp, registerUser } from './support';
 
@@ -14,18 +14,45 @@ afterAll(async () => {
   await app.close();
 });
 
-it('lists users without emails or password hashes', async () => {
-  const user = await registerUser(app, 'Listed');
-
+const usersPage = async (query: Record<string, unknown>) => {
+  const viewer = await registerUser(app);
   const response = await api(app)
     .get('/api/users')
-    .set(bearer(user))
+    .query(query)
+    .set(bearer(viewer))
     .expect(200);
-  const users = response.body as UserResponseDto[];
-  const listed = users.find(({ id }) => id === user.id);
+
+  return response.body as UserPageDto;
+};
+
+it('lists users newest first without emails or password hashes', async () => {
+  const user = await registerUser(app, 'Listed');
+
+  const page = await usersPage({ limit: 50 });
+  const listed = page.items.find(({ id }) => id === user.id);
 
   expect(listed).toMatchObject({ userName: 'Listed' });
-  expect(JSON.stringify(users)).not.toMatch(/"(email|password)"/);
+  expect(JSON.stringify(page)).not.toMatch(/"(email|password)"/);
+});
+
+it('pages through users with a cursor', async () => {
+  const first = await usersPage({ limit: 2 });
+  const second = await usersPage({ limit: 2, cursor: first.nextCursor });
+  const firstIds = first.items.map(({ id }) => id);
+
+  expect(first.items).toHaveLength(2);
+  expect(first.nextCursor).toEqual(expect.any(String));
+  expect(second.items.some(({ id }) => firstIds.includes(id))).toBe(false);
+});
+
+it('rejects a page larger than 50', async () => {
+  const viewer = await registerUser(app);
+
+  await api(app)
+    .get('/api/users')
+    .query({ limit: 51 })
+    .set(bearer(viewer))
+    .expect(400);
 });
 
 it('returns a profile by id', async () => {
@@ -50,5 +77,5 @@ it('answers 404 for an unknown user and 400 for a malformed id', async () => {
     .get('/api/users/00000000-0000-4000-8000-000000000000')
     .set(bearer(viewer))
     .expect(404);
-  await api(app).get('/api/users/me').set(bearer(viewer)).expect(400);
+  await api(app).get('/api/users/not-a-uuid').set(bearer(viewer)).expect(400);
 });

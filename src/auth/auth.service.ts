@@ -15,6 +15,7 @@ import { LoginAuthDto } from '@/auth/dto/login-auth.dto';
 import { AuthDatabaseService } from '@/database/auth-database.service';
 import { getPostgresErrorCode } from '@/database/postgres-error';
 import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
+import { UserSocketsService } from '@/realtime/user-sockets.service';
 import type { RefreshToken } from '@/database/schemas/refreshTokens.schema';
 import type { User } from '@/database/schemas/users.schema';
 import { UserResponseDto } from '@/user/dto/user-response.dto';
@@ -51,6 +52,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly authDatabaseService: AuthDatabaseService,
     private readonly refreshTokenDatabaseService: RefreshTokenDatabaseService,
+    private readonly userSocketsService: UserSocketsService,
     configService: ConfigService<Env, true>,
   ) {
     this.refreshTokenSecret = configService.get('REFRESH_TOKEN_SECRET', {
@@ -140,6 +142,7 @@ export class AuthService {
 
     if (!(await this.isConcurrentRefresh(token))) {
       await this.refreshTokenDatabaseService.revokeFamily(token.family_id);
+      this.userSocketsService.disconnectUser(token.user_id);
       throw new UnauthorizedException();
     }
 
@@ -171,7 +174,13 @@ export class AuthService {
       () => null,
     );
 
-    if (payload) await this.refreshTokenDatabaseService.revoke(payload.jti);
+    if (!payload) return;
+
+    const token = await this.refreshTokenDatabaseService.findById(payload.jti);
+    if (token) {
+      await this.refreshTokenDatabaseService.revokeFamily(token.family_id);
+    }
+    this.userSocketsService.disconnectUser(payload.sub);
   }
 
   private async startSession(

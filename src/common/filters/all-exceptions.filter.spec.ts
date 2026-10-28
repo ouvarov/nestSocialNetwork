@@ -1,6 +1,6 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
-import { toErrorResponse } from './all-exceptions.filter';
+import { toErrorAck, toErrorResponse } from './all-exceptions.filter';
 
 const postgresError = (code: string) =>
   Object.assign(new Error('db error'), { code });
@@ -23,6 +23,8 @@ describe('toErrorResponse', () => {
     ['22P02', 400],
     ['22007', 400],
     ['22008', 400],
+    ['22001', 400],
+    ['23514', 400],
   ])('maps postgres error %s to %i', (code, status) => {
     expect(toErrorResponse(postgresError(code)).status).toBe(status);
   });
@@ -39,6 +41,29 @@ describe('toErrorResponse', () => {
     expect(toErrorResponse(new Error('secret details'))).toEqual({
       status: 500,
       body: { statusCode: 500, message: 'Internal server error' },
+    });
+  });
+});
+
+describe('toErrorAck', () => {
+  it('turns an error into a socket acknowledgement', () => {
+    expect(
+      toErrorAck(toErrorResponse(new NotFoundException('Chat not found'))),
+    ).toEqual({
+      ok: false,
+      error: { statusCode: 404, message: 'Chat not found' },
+    });
+  });
+
+  it('joins validation messages into one line', () => {
+    const validationError = new BadRequestException([
+      'content should not be empty',
+      'chatId must be a UUID',
+    ]);
+
+    expect(toErrorAck(toErrorResponse(validationError)).error).toEqual({
+      statusCode: 400,
+      message: 'content should not be empty; chatId must be a UUID',
     });
   });
 });
