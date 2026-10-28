@@ -108,7 +108,10 @@ export class MessageGateway implements OnGatewayInit, OnGatewayConnection {
     @MessageBody() createMessageDto: CreateMessageDto,
   ) {
     const { id: senderId } = getSocketUser(client);
-    await this.chatService.assertCanSend(senderId, createMessageDto.chatId);
+    const memberIds = await this.chatService.assertCanSend(
+      senderId,
+      createMessageDto.chatId,
+    );
 
     const message = await this.messageService.create(
       senderId,
@@ -117,6 +120,7 @@ export class MessageGateway implements OnGatewayInit, OnGatewayConnection {
     this.namespace
       .to(chatRoom(createMessageDto.chatId))
       .emit('newMessage', message);
+    this.userSocketsService.notifyChatsChanged(memberIds);
 
     return success(message);
   }

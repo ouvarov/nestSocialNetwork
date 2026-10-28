@@ -1,7 +1,10 @@
 import {
   BadRequestException,
+  UnauthorizedException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
+
+import type { UserService } from '@/user/user.service';
 
 import { detectImageType } from '../image-type';
 import { UploadService } from '../upload.service';
@@ -16,7 +19,7 @@ const HTML = Buffer.from('<html><script>alert(1)</script></html>');
 const asUpload = (buffer: Buffer, mimetype = 'image/png') =>
   ({ buffer, mimetype, originalname: 'photo.png' }) as Express.Multer.File;
 
-const createUploadService = () => {
+const createUploadService = (existingUserIds = ['user-1']) => {
   const saved: { path: string; contentType: string }[] = [];
   const storage = {
     save: (path: string, _data: Buffer, contentType: string) => {
@@ -28,7 +31,9 @@ const createUploadService = () => {
   };
 
   return {
-    uploadService: new UploadService(storage),
+    uploadService: new UploadService(storage, {
+      exists: (id: string) => Promise.resolve(existingUserIds.includes(id)),
+    } as unknown as UserService),
     saved,
   };
 };
@@ -71,6 +76,15 @@ describe('UploadService', () => {
     await expect(
       uploadService.uploadImage('user-1', asUpload(HTML, 'image/png')),
     ).rejects.toThrow(UnsupportedMediaTypeException);
+    expect(saved).toHaveLength(0);
+  });
+
+  it('rejects an upload from a deleted account', async () => {
+    const { uploadService, saved } = createUploadService([]);
+
+    await expect(
+      uploadService.uploadImage('user-1', asUpload(JPEG)),
+    ).rejects.toThrow(UnauthorizedException);
     expect(saved).toHaveLength(0);
   });
 

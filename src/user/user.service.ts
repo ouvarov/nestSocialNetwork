@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -90,23 +91,32 @@ export class UserService {
 
   async deleteAccount(userId: string, password: string): Promise<void> {
     const user = await this.userDatabaseService.findById(userId);
-    const isPasswordValid =
-      user !== null && (await bcrypt.compare(password, user.password));
+    if (!user) throw new UnauthorizedException();
 
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Invalid credentials');
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) throw new ForbiddenException('Wrong password');
 
     const isDeleted = await this.userDatabaseService.deleteUser(userId);
-    if (!isDeleted) throw new UnauthorizedException('Invalid credentials');
+    if (!isDeleted) throw new UnauthorizedException();
 
     this.userSocketsService.disconnectUser(userId);
-    await this.cacheService.delete(profileKey(userId));
-    await this.storageService
-      .removeDirectory(userImagesDir(userId))
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Images of deleted user ${userId} were not removed: ${String(error)}`,
+    await Promise.all([
+      this.cacheService
+        .delete(profileKey(userId))
+        .catch((error: unknown) =>
+          this.logCleanupFailure('cached profile', userId, error),
         ),
-      );
+      this.storageService
+        .removeDirectory(userImagesDir(userId))
+        .catch((error: unknown) =>
+          this.logCleanupFailure('images', userId, error),
+        ),
+    ]);
+  }
+
+  private logCleanupFailure(what: string, userId: string, error: unknown) {
+    this.logger.warn(
+      `The ${what} of deleted user ${userId} was not removed: ${String(error)}`,
+    );
   }
 }

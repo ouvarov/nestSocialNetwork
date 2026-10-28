@@ -187,9 +187,10 @@ describe('ChatService', () => {
       const { chatService } = createChatService();
       const chatId = await chatService.create(ADA, LINUS);
 
-      await expect(
-        chatService.assertCanSend(LINUS, chatId),
-      ).resolves.toBeUndefined();
+      await expect(chatService.assertCanSend(LINUS, chatId)).resolves.toEqual([
+        ADA,
+        LINUS,
+      ]);
     });
   });
 });

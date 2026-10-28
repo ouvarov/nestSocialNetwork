@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Messages } from '@/database/schemas/messages.schema';
 

@@ -1,19 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  and,
-  desc,
-  eq,
-  exists,
-  gt,
-  isNull,
-  ne,
-  notExists,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import type { Cursor } from '@/common/pagination/cursor';
+import { deleteChatsNobodySees, lockChats } from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
 import { Chats } from '@/database/schemas/chats.schema';
@@ -206,11 +196,7 @@ export class ChatDatabaseService {
 
   clearChat(chatId: string, userId: string): Promise<boolean> {
     return this.db.transaction(async (tx) => {
-      await tx
-        .select({ chatId: Chats.chat_id })
-        .from(Chats)
-        .where(eq(Chats.chat_id, chatId))
-        .for('update');
+      await lockChats(tx, [chatId]);
 
       const cleared = await tx
         .update(ChatMembers)
@@ -222,31 +208,7 @@ export class ChatDatabaseService {
 
       if (cleared.length === 0) return false;
 
-      const messagesAfterClear = tx
-        .select({ messageId: Messages.message_id })
-        .from(Messages)
-        .where(
-          and(
-            eq(Messages.chat_id, ChatMembers.chat_id),
-            gt(Messages.sent_at, ChatMembers.cleared_at),
-          ),
-        );
-      const membersStillSeeingHistory = tx
-        .select({ userId: ChatMembers.user_id })
-        .from(ChatMembers)
-        .where(
-          and(
-            eq(ChatMembers.chat_id, Chats.chat_id),
-            or(isNull(ChatMembers.cleared_at), exists(messagesAfterClear)),
-          ),
-        );
-
-      await tx
-        .delete(Chats)
-        .where(
-          and(eq(Chats.chat_id, chatId), notExists(membersStillSeeingHistory)),
-        );
-
+      await deleteChatsNobodySees(tx, [chatId]);
       return true;
     });
   }

@@ -15,6 +15,10 @@ export class UserSocketsService {
     await client.join(userRoom(userId));
   }
 
+  notifyChatsChanged(userIds: string[]): void {
+    this.namespace?.to(userIds.map(userRoom)).emit('chatsChanged');
+  }
+
   disconnectUser(userId: string): void {
     this.namespace?.in(userRoom(userId)).disconnectSockets(true);
   }

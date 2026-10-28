@@ -1,10 +1,13 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { eq } from 'drizzle-orm';
 
 import type {
   ChatDto,
   ChatSummaryDto,
   MessagePageDto,
 } from '@/chat/dto/chat-response.dto';
+import { DRIZZLE, type Database } from '@/database/drizzle';
+import { Chats } from '@/database/schemas/chats.schema';
 import type { PostResponseDto } from '@/post/dto/post-response.dto';
 
 import {
@@ -30,6 +33,16 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
 });
+
+const chatExists = async (chatId: string) => {
+  const rows = await app
+    .get<Database>(DRIZZLE)
+    .select({ chatId: Chats.chat_id })
+    .from(Chats)
+    .where(eq(Chats.chat_id, chatId));
+
+  return rows.length > 0;
+};
 
 const registerPair = () =>
   Promise.all([registerUser(app, 'Staying'), registerUser(app, 'Leaving')]);
@@ -113,13 +126,21 @@ it('removes a chat once both people deleted their accounts', async () => {
   await sendMessage(app, first, chatId, 'Hi');
 
   await deleteAccount(app, first);
+  expect(await chatExists(chatId)).toBe(true);
   await deleteAccount(app, second);
 
-  const newcomer = await registerUser(app);
-  await api(app)
-    .get(`/api/chat/find/${chatId}`)
-    .set(bearer(newcomer))
-    .expect(404);
+  expect(await chatExists(chatId)).toBe(false);
+});
+
+it('removes a chat the other person already deleted for themselves', async () => {
+  const [staying, leaving] = await registerPair();
+  const chatId = await createChat(app, staying, leaving);
+  await sendMessage(app, leaving, chatId, 'Hi');
+  await api(app).delete(`/api/chat/${chatId}`).set(bearer(staying)).expect(204);
+
+  await deleteAccount(app, leaving);
+
+  expect(await chatExists(chatId)).toBe(false);
 });
 
 it('keeps the account when the password is wrong', async () => {
@@ -129,7 +150,11 @@ it('keeps the account when the password is wrong', async () => {
     .delete('/api/users/me')
     .set(bearer(leaving))
     .send({ password: 'wrong-password' })
-    .expect(401);
+    .expect(403, {
+      statusCode: 403,
+      message: 'Wrong password',
+      error: 'Forbidden',
+    });
   await api(app)
     .post('/api/auth/login')
     .send({ email: leaving.email, password: PASSWORD })

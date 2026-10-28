@@ -96,7 +96,7 @@ export class ChatService {
     if (!isMember) throw new NotFoundException('Chat not found');
   }
 
-  async assertCanSend(userId: string, chatId: string): Promise<void> {
+  async assertCanSend(userId: string, chatId: string): Promise<string[]> {
     const memberIds = await this.chatDatabaseService.findMemberIds(chatId);
 
     if (!memberIds.includes(userId)) {
@@ -105,5 +105,7 @@ export class ChatService {
     if (memberIds.length < DIRECT_CHAT_MEMBERS) {
       throw new GoneException('User deleted');
     }
+
+    return memberIds;
   }
 }

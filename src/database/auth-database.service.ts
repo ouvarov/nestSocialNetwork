@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { Users, type User } from '@/database/schemas/users.schema';
 import { DRIZZLE, type Database } from '@/database/drizzle';
+import { Users, type User } from '@/database/schemas/users.schema';
 
 @Injectable()
 export class AuthDatabaseService {

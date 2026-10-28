@@ -13,12 +13,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
   ApiTooManyRequestsResponse,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -70,7 +70,7 @@ export class UserController {
     description:
       'Deletes the account, its posts and likes; messages stay with the other person without a sender',
   })
-  @ApiUnauthorizedResponse({ description: 'Wrong password' })
+  @ApiForbiddenResponse({ description: 'Wrong password' })
   @ApiTooManyRequestsResponse()
   async deleteMe(
     @CurrentUser() user: AuthUser,

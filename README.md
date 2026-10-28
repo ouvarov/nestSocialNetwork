@@ -22,7 +22,7 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
 - **Auth**:
   - a short-lived access token;
   - rotating refresh tokens in an httpOnly cookie, with reuse detection that revokes the whole session;
-  - logout revokes the session and closes its sockets;
+  - logout revokes the session and closes the user's sockets on every device; other devices reconnect with their own refresh token;
   - emails are case-insensitive, passwords are capped at bcrypt's 72 bytes.
 - **Account deletion** behind the password: posts and likes go, messages stay in the other person's chat without a sender, uploads are removed.
 - **Posts with images:**

@@ -9,6 +9,21 @@ FROM (
 	HAVING count(*) = 2
 ) AS "pairs"
 WHERE "chats"."chat_id" = "pairs"."chat_id";--> statement-breakpoint
+UPDATE "messages" SET "chat_id" = "keepers"."keeper_id"
+FROM (
+	SELECT "chat_id", first_value("chat_id") OVER (PARTITION BY "pair_key" ORDER BY "created_at", "chat_id") AS "keeper_id"
+	FROM "chats"
+	WHERE "pair_key" IS NOT NULL
+) AS "keepers"
+WHERE "messages"."chat_id" = "keepers"."chat_id" AND "keepers"."chat_id" <> "keepers"."keeper_id";--> statement-breakpoint
+DELETE FROM "chats"
+USING (
+	SELECT "chat_id", first_value("chat_id") OVER (PARTITION BY "pair_key" ORDER BY "created_at", "chat_id") AS "keeper_id"
+	FROM "chats"
+	WHERE "pair_key" IS NOT NULL
+) AS "keepers"
+WHERE "chats"."chat_id" = "keepers"."chat_id" AND "keepers"."chat_id" <> "keepers"."keeper_id";--> statement-breakpoint
+DELETE FROM "chats" WHERE "pair_key" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "chats_direct_pair_key_uq" ON "chats" USING btree ("pair_key") WHERE "chats"."kind" = 'direct';--> statement-breakpoint
 ALTER TABLE "chats" ADD CONSTRAINT "chats_kind_check" CHECK ("chats"."kind" in ('direct'));--> statement-breakpoint
 ALTER TABLE "chats" ADD CONSTRAINT "chats_direct_pair_key_check" CHECK ("chats"."kind" <> 'direct' or "chats"."pair_key" is not null);--> statement-breakpoint

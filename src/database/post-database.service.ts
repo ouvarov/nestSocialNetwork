@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { DRIZZLE, type Database } from '@/database/drizzle';
 
 import type { Cursor } from '@/common/pagination/cursor';
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Likes } from '@/database/schemas/likes.schema';
 import { Posts } from '@/database/schemas/posts.schema';
 

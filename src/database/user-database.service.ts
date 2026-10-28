@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 
 import type { Cursor } from '@/common/pagination/cursor';
+import { deleteChatsNobodySees, lockChats } from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
-import { Chats } from '@/database/schemas/chats.schema';
 import { Users, type User } from '@/database/schemas/users.schema';
 
 type PublicUser = Pick<
@@ -90,6 +90,8 @@ export class UserDatabaseOrmService {
         .select({ chatId: ChatMembers.chat_id })
         .from(ChatMembers)
         .where(eq(ChatMembers.user_id, userId));
+      const chatIds = memberships.map(({ chatId }) => chatId);
+      await lockChats(tx, chatIds);
 
       const deleted = await tx
         .delete(Users)
@@ -97,23 +99,8 @@ export class UserDatabaseOrmService {
         .returning({ id: Users.user_id });
 
       if (deleted.length === 0) return false;
-      if (memberships.length === 0) return true;
 
-      const remainingMembers = tx
-        .select({ userId: ChatMembers.user_id })
-        .from(ChatMembers)
-        .where(eq(ChatMembers.chat_id, Chats.chat_id));
-
-      await tx.delete(Chats).where(
-        and(
-          inArray(
-            Chats.chat_id,
-            memberships.map(({ chatId }) => chatId),
-          ),
-          notExists(remainingMembers),
-        ),
-      );
-
+      await deleteChatsNobodySees(tx, chatIds);
       return true;
     });
   }

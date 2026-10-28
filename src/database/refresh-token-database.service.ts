@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, isNull, lt } from 'drizzle-orm';
-import { DRIZZLE, type Database } from '@/database/drizzle';
 
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import {
   RefreshTokens,
   type RefreshToken,

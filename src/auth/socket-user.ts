@@ -10,7 +10,7 @@ type SocketData = { session?: SocketSession };
 const findSocketSession = (client: Socket): SocketSession | undefined =>
   (client.data as SocketData).session;
 
-const isSessionAlive = (session: SocketSession | undefined) =>
+const isSessionAlive = (session: SocketSession | undefined): boolean =>
   session !== undefined && session.expiresAtEpochMs > Date.now();
 
 const getSocketUser = (client: Socket): AuthUser => {

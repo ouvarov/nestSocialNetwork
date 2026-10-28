@@ -148,6 +148,23 @@ describe('messages', () => {
     expect(eveMessages).toEqual([]);
   });
 
+  it('tell both members to refresh their chat list, even outside the room', async () => {
+    const [adaSocket, bobSocket, eveSocket] = await Promise.all([
+      connect(ada),
+      connect(bob),
+      connect(eve),
+    ]);
+    let eveNotifications = 0;
+    eveSocket.on('chatsChanged', () => (eveNotifications += 1));
+    const adaNotified = nextEvent(adaSocket, 'chatsChanged');
+    const bobNotified = nextEvent(bobSocket, 'chatsChanged');
+
+    await send(adaSocket, 'Is the list fresh?');
+
+    await Promise.all([adaNotified, bobNotified]);
+    expect(eveNotifications).toBe(0);
+  });
+
   it('answer each of two parallel sends in its own ack', async () => {
     const socket = await connect(ada);
 

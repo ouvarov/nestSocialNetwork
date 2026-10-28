@@ -225,7 +225,7 @@
           "204": {
             "description": "Deletes the account, its posts and likes; messages stay with the other person without a sender"
           },
-          "401": {
+          "403": {
             "description": "Wrong password"
           },
           "429": {
