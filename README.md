@@ -39,7 +39,8 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
 - **Rate limits** stored in Redis:
   - 5 sign-in attempts per minute per visitor;
   - chat events limited per user;
-  - the visitor IP is taken only from the trusted proxy.
+  - the visitor IP is taken only from the trusted proxy;
+  - Redis commands time out after 500 ms: limits then count in memory and the cache reads as a miss, so a Redis outage doesn't block sign-in.
 - **Operations:**
   - liveness and readiness checks;
   - env validated with zod at startup;
@@ -121,7 +122,7 @@ Nest 12 packages are ESM-only. The app stays CommonJS and loads them through `re
 ## Testing
 
 ```bash
-npm test           # 80 unit tests
+npm test           # unit tests
 npm run test:e2e   # 74 e2e tests; needs DATABASE_URL and a migrated database
 ```
 
@@ -189,7 +190,7 @@ The web repo's CI also checks out this repo's `main` and runs its Playwright sui
 The demo runs on free tiers: the API on Render (Docker), Postgres on Neon, Redis on Upstash, images in Supabase Storage, and the web app on Vercel.
 
 - **The browser calls the API through Vercel**, so the refresh cookie stays first-party. Safari blocks third-party cookies, so a direct cross-site call would sign users out on every reload.
-- **Vercel adds a secret header.** With `ORIGIN_SECRET` set, the API answers only requests that carry it. Health checks and Socket.IO are the exceptions. Because only proxied requests get through, the API can trust Vercel's `x-real-ip` for rate limits.
+- **Vercel adds a secret header.** `ORIGIN_SECRET` is required in production, and the API answers only requests that carry it. Health checks and Socket.IO are the exceptions. Because only proxied requests get through, the API can trust Vercel's `x-real-ip` for rate limits.
 - **Socket.IO connects to Render directly**, because Vercel rewrites don't carry WebSockets. The token goes in the handshake, and chat events are limited per user.
 - **The free instance sleeps after 15 minutes idle.** The web app pings `/api/health/live` directly and shows a "waking up" notice, so the proxy never waits on a sleeping instance.
 - **Migrations run when the container starts**, because Render's pre-deploy command is paid only.
@@ -215,7 +216,6 @@ First deploy:
 ## What I'd do next
 
 - Add the Socket.IO Redis adapter and run two API replicas behind a load balancer.
-- Make rate limiting fail open with a short Redis command timeout, so a Redis outage doesn't block sign-in.
 - Add notifications, read receipts and typing indicators.
 - Add follows and a personalised feed, plus full-text search with Postgres `tsvector`.
 - Add OpenTelemetry traces across HTTP, sockets and the database.

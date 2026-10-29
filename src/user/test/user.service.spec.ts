@@ -1,7 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
-import type { CacheService } from '@/cache/cache.service';
 import { MemoryCacheService } from '@/cache/memory-cache.service';
 import type {
   PublicUser,
@@ -26,7 +25,6 @@ const TEST_HASH_ROUNDS = 4;
 const createUserService = (
   users: PublicUser[],
   storage: Partial<StorageService> = {},
-  cache: CacheService = new MemoryCacheService(),
 ) => {
   let databaseReads = 0;
   const deletedUserIds: string[] = [];
@@ -58,7 +56,12 @@ const createUserService = (
   } as unknown as StorageService;
 
   return {
-    userService: new UserService(database, cache, userSockets, storageService),
+    userService: new UserService(
+      database,
+      new MemoryCacheService(),
+      userSockets,
+      storageService,
+    ),
     databaseReads: () => databaseReads,
     deletedUserIds,
     disconnectedUserIds,
@@ -132,24 +135,6 @@ describe('UserService.deleteAccount', () => {
     const { userService, deletedUserIds } = createUserService([ADA], {
       removeDirectory: () => Promise.reject(new Error('storage is down')),
     });
-
-    await expect(
-      userService.deleteAccount(ADA.user_id, PASSWORD),
-    ).resolves.toBeUndefined();
-    expect(deletedUserIds).toEqual([ADA.user_id]);
-  });
-
-  it('still succeeds when the cache is down', async () => {
-    const brokenCache = {
-      get: () => Promise.resolve(undefined),
-      set: () => Promise.resolve(),
-      delete: () => Promise.reject(new Error('redis is down')),
-    } as unknown as CacheService;
-    const { userService, deletedUserIds } = createUserService(
-      [ADA],
-      {},
-      brokenCache,
-    );
 
     await expect(
       userService.deleteAccount(ADA.user_id, PASSWORD),

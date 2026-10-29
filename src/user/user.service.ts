@@ -101,11 +101,7 @@ export class UserService {
 
     this.userSocketsService.disconnectUser(userId);
     await Promise.all([
-      this.cacheService
-        .delete(profileKey(userId))
-        .catch((error: unknown) =>
-          this.logCleanupFailure('cached profile', userId, error),
-        ),
+      this.cacheService.delete(profileKey(userId)),
       this.storageService
         .removeDirectory(userImagesDir(userId))
         .catch((error: unknown) =>

@@ -11,7 +11,8 @@ import Redis from 'ioredis';
 import type { Env } from '@/config/env.schema';
 
 const REDIS_CLIENT = Symbol('REDIS_CLIENT');
-const MAX_RETRIES_PER_REQUEST = 3;
+const MAX_RETRIES_PER_REQUEST = 1;
+const COMMAND_TIMEOUT_MS = 500;
 
 const createRedisClient = (config: ConfigService<Env, true>) => {
   const url = config.get('REDIS_URL', { infer: true });
@@ -26,6 +27,7 @@ const createRedisClient = (config: ConfigService<Env, true>) => {
 
   return new Redis(url, {
     maxRetriesPerRequest: MAX_RETRIES_PER_REQUEST,
+    commandTimeout: COMMAND_TIMEOUT_MS,
   }).on('error', (error: Error) => logger.warn(error.message));
 };
 

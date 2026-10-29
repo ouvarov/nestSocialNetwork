@@ -60,7 +60,7 @@ services:
     env_file: .env
     environment:
       <<: *local-database
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 5000
       REDIS_URL: redis://redis:6379
       STORAGE_DRIVER: local
