@@ -32,12 +32,20 @@ The original version had a 15-minute access JWT in `localStorage`, where any XSS
 - Each refresh revokes the presented token and issues its successor in the same family.
 - **Reuse detection:** presenting a token that was already rotated revokes the whole family. This catches a stolen token being used after its owner has refreshed.
 - **Concurrent refresh:** two tabs refreshing with the same token within 10 seconds get a new token each, from the same family, instead of a false theft alarm.
+- **Logout** revokes the whole family, so a sibling token from a concurrent refresh dies too.
+
+**Socket**
+
+- The handshake is checked once, in namespace middleware. A refused client gets `connect_error` with `Unauthorized`.
+- The socket keeps the token's `exp`. A timer closes it at `exp`, and every event checks `exp` again without touching the database.
+- Each socket joins the room `user:<id>`. Logout, reuse detection and account deletion close every socket in that room.
+- Every event answers through its acknowledgement: `{ ok: true, data }` or `{ ok: false, error: { statusCode, message } }`. There is no separate `exception` event, so an error always reaches the call that caused it.
 
 **Client**
 
 - A single-flight refresh: parallel 401s wait for one refresh call, then retry their original requests.
 - A failed refresh ends the session everywhere: it clears the query cache, disconnects the socket and redirects to sign-in.
-- When the server closes the socket over an expired token, the client refreshes and reconnects, at most once every 30 seconds.
+- When the server closes the socket (`io server disconnect`), the client refreshes the access token and reconnects. If the refresh fails, the session ends.
 
 **Same-origin proxy**
 
@@ -53,5 +61,6 @@ The original version had a 15-minute access JWT in `localStorage`, where any XSS
 ## Consequences
 
 - An XSS can still act as the user while the page is open. It can't take a long-lived credential away with it.
-- Every refresh writes to the database. Revoked rows are kept, so they need occasional cleanup.
+- Every refresh writes to the database. Revoked rows are kept until they expire, because reuse detection needs them. A daily job deletes expired rows.
+- A socket lives at most until its access token expires, so a stolen access token can't keep a socket open after logout.
 - The web hosting must proxy `/api/*`. Local dev mirrors this with the Vite proxy.

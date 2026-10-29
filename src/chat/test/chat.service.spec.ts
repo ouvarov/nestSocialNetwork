@@ -1,122 +1,149 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  GoneException,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import type { ChatDatabaseService } from '@/database/chat-database.service';
+import type {
+  ChatDatabaseService,
+  ChatPeer,
+} from '@/database/chat-database.service';
+import type { UserService } from '@/user/user.service';
 
 import { ChatService } from '../chat.service';
 
-const ADA = 'ada';
-const LINUS = 'linus';
-const GRACE = 'grace';
+const ADA = '00000000-0000-4000-8000-00000000000a';
+const LINUS = '00000000-0000-4000-8000-00000000000b';
+const GRACE = '00000000-0000-4000-8000-00000000000c';
+
+const peerOf = (userId: string): ChatPeer => ({
+  id: userId,
+  userName: userId,
+  imageUrl: null,
+});
 
 const createChatStore = () => {
-  const members = new Map<string, Set<string>>();
-  const names = new Map<string, string>();
+  const chats = new Map<string, { pairKey: string; members: Set<string> }>();
 
   const store = {
     isMember: (chatId: string, userId: string) =>
-      Promise.resolve(members.get(chatId)?.has(userId) ?? false),
-    findChatWithExactMembers: (memberIds: string[]) => {
-      const match = [...members.entries()].find(
-        ([, chatMembers]) =>
-          chatMembers.size === memberIds.length &&
-          memberIds.every((id) => chatMembers.has(id)),
+      Promise.resolve(chats.get(chatId)?.members.has(userId) ?? false),
+    findMemberIds: (chatId: string) =>
+      Promise.resolve([...(chats.get(chatId)?.members ?? [])]),
+    findOrCreateDirectChat: (userId: string, peerId: string) => {
+      const pairKey = [userId, peerId].sort().join(':');
+      const existing = [...chats.entries()].find(
+        ([, chat]) => chat.pairKey === pairKey,
       );
-      return Promise.resolve(match?.[0] ?? null);
-    },
-    createChat: (memberIds: string[]) => {
+      if (existing) return Promise.resolve(existing[0]);
+
       const chatId = randomUUID();
-      members.set(chatId, new Set(memberIds));
-      names.set(chatId, memberIds.join(', '));
+      chats.set(chatId, { pairKey, members: new Set([userId, peerId]) });
       return Promise.resolve(chatId);
     },
-    getChatsOfUser: (userId: string) =>
-      Promise.resolve(
-        [...members.entries()]
-          .filter(([, chatMembers]) => chatMembers.has(userId))
-          .map(([chatId]) => ({ chatId, chatName: names.get(chatId) ?? null })),
-      ),
-    getChatWithMessages: (chatId: string) =>
-      Promise.resolve(
-        members.has(chatId)
-          ? { chatName: names.get(chatId) ?? '', messages: [] }
-          : null,
-      ),
-    deleteChat: (chatId: string) =>
-      Promise.resolve(members.delete(chatId) ? chatId : null),
-    updateChatName: (chatId: string, chatName: string) => {
-      if (!members.has(chatId)) return Promise.resolve(null);
-      names.set(chatId, chatName);
-      return Promise.resolve({ chatId, chatName });
+    findChatHeader: (chatId: string, userId: string) => {
+      const members = chats.get(chatId)?.members;
+      if (!members?.has(userId)) return Promise.resolve(null);
+
+      const peerId = [...members].find((id) => id !== userId);
+      return Promise.resolve({
+        chatId,
+        peer: peerId ? peerOf(peerId) : null,
+      });
     },
+    findMessages: () => Promise.resolve([]),
+    clearChat: (chatId: string, userId: string) =>
+      Promise.resolve(chats.get(chatId)?.members.has(userId) ?? false),
   };
 
-  return { store, members };
+  return { store, chats };
 };
 
-const createChatService = () => {
-  const { store, members } = createChatStore();
-  const chatService = new ChatService(store as unknown as ChatDatabaseService);
+const createChatService = (existingUserIds = [ADA, LINUS, GRACE]) => {
+  const { store, chats } = createChatStore();
+  const userService = {
+    exists: (id: string) => Promise.resolve(existingUserIds.includes(id)),
+  };
+  const chatService = new ChatService(
+    store as unknown as ChatDatabaseService,
+    userService as unknown as UserService,
+  );
+  const deleteAccount = (chatId: string, userId: string) =>
+    chats.get(chatId)?.members.delete(userId);
 
-  return { chatService, members };
+  return { chatService, chats, deleteAccount };
 };
 
 describe('ChatService', () => {
   describe('create', () => {
-    it('always adds the caller and drops duplicate ids', async () => {
-      const { chatService, members } = createChatService();
+    it('creates one direct chat per pair whoever starts it', async () => {
+      const { chatService, chats } = createChatService();
 
-      const chatId = await chatService.create(ADA, [LINUS, LINUS]);
-
-      expect([...(members.get(chatId) ?? [])].sort()).toEqual([ADA, LINUS]);
-    });
-
-    it('does not let the caller create a chat between other people', async () => {
-      const { chatService, members } = createChatService();
-
-      const chatId = await chatService.create(ADA, [LINUS, GRACE]);
-
-      expect(members.get(chatId)?.has(ADA)).toBe(true);
-    });
-
-    it('returns the existing chat for the same members', async () => {
-      const { chatService } = createChatService();
-
-      const first = await chatService.create(ADA, [LINUS]);
-      const second = await chatService.create(LINUS, [ADA]);
+      const first = await chatService.create(ADA, LINUS);
+      const second = await chatService.create(LINUS, ADA);
 
       expect(second).toBe(first);
+      expect([...(chats.get(first)?.members ?? [])].sort()).toEqual([
+        ADA,
+        LINUS,
+      ]);
     });
 
-    it('does not reuse a group chat for a direct message', async () => {
+    it('treats an upper-case id as the same person', async () => {
       const { chatService } = createChatService();
 
-      const groupChat = await chatService.create(ADA, [LINUS, GRACE]);
-      const directChat = await chatService.create(ADA, [LINUS]);
+      const first = await chatService.create(ADA, LINUS);
 
-      expect(directChat).not.toBe(groupChat);
+      await expect(chatService.create(ADA, LINUS.toUpperCase())).resolves.toBe(
+        first,
+      );
     });
 
-    it('rejects a chat with only the caller', async () => {
+    it('rejects a chat with yourself', async () => {
       const { chatService } = createChatService();
 
-      await expect(chatService.create(ADA, [ADA])).rejects.toBeInstanceOf(
+      await expect(chatService.create(ADA, ADA)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    it('answers 404 for a user that does not exist', async () => {
+      const { chatService, chats } = createChatService([ADA]);
+
+      await expect(chatService.create(ADA, LINUS)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(chats.size).toBe(0);
+    });
+  });
+
+  describe('findOne', () => {
+    it('shows the other person and allows sending', async () => {
+      const { chatService } = createChatService();
+      const chatId = await chatService.create(ADA, LINUS);
+
+      await expect(chatService.findOne(ADA, chatId)).resolves.toEqual({
+        chatId,
+        peer: peerOf(LINUS),
+        canSend: true,
+      });
+    });
+
+    it('has no peer and no sending once the other person is gone', async () => {
+      const { chatService, deleteAccount } = createChatService();
+      const chatId = await chatService.create(ADA, LINUS);
+      deleteAccount(chatId, LINUS);
+
+      await expect(chatService.findOne(ADA, chatId)).resolves.toEqual({
+        chatId,
+        peer: null,
+        canSend: false,
+      });
     });
   });
 
   describe('access', () => {
-    it('lists only the chats the caller is a member of', async () => {
-      const { chatService } = createChatService();
-      const ownChat = await chatService.create(ADA, [LINUS]);
-      await chatService.create(LINUS, [GRACE]);
-
-      const chats = await chatService.findAll(ADA);
-
-      expect(chats.map(({ chatId }) => chatId)).toEqual([ownChat]);
-    });
-
     it.each([
       [
         'read',
@@ -124,35 +151,46 @@ describe('ChatService', () => {
           service.findOne(GRACE, chatId),
       ],
       [
-        'delete',
+        'read the messages of',
         (service: ChatService, chatId: string) =>
-          service.deleteChat(GRACE, chatId),
+          service.findMessages(GRACE, chatId, {}),
       ],
       [
-        'rename',
-        (service: ChatService, chatId: string) =>
-          service.updateChatName(GRACE, { chatId, newChatName: 'hijacked' }),
+        'clear',
+        (service: ChatService, chatId: string) => service.clear(GRACE, chatId),
       ],
-    ])(
-      'answers 404 when a non-member tries to %s a chat',
-      async (_action, act) => {
-        const { chatService, members } = createChatService();
-        const chatId = await chatService.create(ADA, [LINUS]);
-
-        await expect(act(chatService, chatId)).rejects.toBeInstanceOf(
-          NotFoundException,
-        );
-        expect(members.has(chatId)).toBe(true);
-      },
-    );
-
-    it('lets a member read the chat', async () => {
+      [
+        'send to',
+        (service: ChatService, chatId: string) =>
+          service.assertCanSend(GRACE, chatId),
+      ],
+    ])('answers 404 when a non-member tries to %s a chat', async (_, act) => {
       const { chatService } = createChatService();
-      const chatId = await chatService.create(ADA, [LINUS]);
+      const chatId = await chatService.create(ADA, LINUS);
 
-      await expect(chatService.findOne(LINUS, chatId)).resolves.toMatchObject({
-        messages: [],
-      });
+      await expect(act(chatService, chatId)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('refuses to send once the other person deleted their account', async () => {
+      const { chatService, deleteAccount } = createChatService();
+      const chatId = await chatService.create(ADA, LINUS);
+      deleteAccount(chatId, LINUS);
+
+      await expect(chatService.assertCanSend(ADA, chatId)).rejects.toThrow(
+        new GoneException('User deleted'),
+      );
+    });
+
+    it('lets both members send', async () => {
+      const { chatService } = createChatService();
+      const chatId = await chatService.create(ADA, LINUS);
+
+      await expect(chatService.assertCanSend(LINUS, chatId)).resolves.toEqual([
+        ADA,
+        LINUS,
+      ]);
     });
   });
 });

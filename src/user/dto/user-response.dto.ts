@@ -28,3 +28,15 @@ export class UserResponseDto {
   @Exclude()
   email: string;
 }
+
+export class UserPageDto {
+  @ApiProperty({ type: [UserResponseDto], description: 'Newest members first' })
+  items: UserResponseDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Pass as cursor to get the next page; null on the last page',
+  })
+  nextCursor: string | null;
+}

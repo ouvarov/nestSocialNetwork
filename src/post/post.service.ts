@@ -10,11 +10,15 @@ import {
   PostDatabaseOrmService,
   type PostRow,
 } from '@/database/post-database.service';
+import { getPostgresErrorCode } from '@/database/postgres-error';
 import { StorageService } from '@/storage/storage.service';
 import { userImagesDir } from '@/storage/user-images';
 
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
+
+const POSTS_PAGE_SIZE = 10;
+const FOREIGN_KEY_VIOLATION = '23503';
 
 const toPostResponse = ({
   postId,
@@ -61,7 +65,7 @@ export class PostService {
   async findPostsOfOwner(
     ownerId: string,
     viewerId: string,
-    { limit, cursor }: PageQueryDto,
+    { limit = POSTS_PAGE_SIZE, cursor }: PageQueryDto,
   ): Promise<PostPageDto> {
     const rows = await this.postDatabaseService.findPostsOfOwner({
       ownerId,
@@ -77,14 +81,19 @@ export class PostService {
   }
 
   async like(userId: string, postId: string): Promise<PostResponseDto> {
-    await this.getPost(postId, userId);
-    await this.postDatabaseService.like(postId, userId);
+    try {
+      await this.postDatabaseService.like(postId, userId);
+    } catch (error) {
+      if (getPostgresErrorCode(error) === FOREIGN_KEY_VIOLATION) {
+        throw new NotFoundException('Post not found');
+      }
+      throw error;
+    }
 
     return this.getPost(postId, userId);
   }
 
   async unlike(userId: string, postId: string): Promise<PostResponseDto> {
-    await this.getPost(postId, userId);
     await this.postDatabaseService.unlike(postId, userId);
 
     return this.getPost(postId, userId);

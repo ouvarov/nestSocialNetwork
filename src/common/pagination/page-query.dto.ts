@@ -2,17 +2,19 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
 export class PageQueryDto {
-  @ApiPropertyOptional({ default: DEFAULT_PAGE_SIZE, maximum: MAX_PAGE_SIZE })
+  @ApiPropertyOptional({
+    maximum: MAX_PAGE_SIZE,
+    description: 'Each list has its own default page size',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(MAX_PAGE_SIZE)
-  limit: number = DEFAULT_PAGE_SIZE;
+  limit?: number;
 
   @ApiPropertyOptional({ description: 'nextCursor from the previous page' })
   @IsOptional()

@@ -8,11 +8,22 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { WsException } from '@nestjs/websockets';
-import type { Socket } from 'socket.io';
 
 import { getPostgresErrorCode } from '@/database/postgres-error';
 
 type ErrorResponse = { status: number; body: object };
+
+type ErrorAck = {
+  ok: false;
+  error: { statusCode: number; message: string };
+};
+
+const WS_ACK_ARG_INDEX = 2;
+
+const INVALID_INPUT = {
+  status: HttpStatus.BAD_REQUEST,
+  message: 'Invalid input',
+};
 
 const POSTGRES_ERRORS: Record<string, { status: HttpStatus; message: string }> =
   {
@@ -21,9 +32,11 @@ const POSTGRES_ERRORS: Record<string, { status: HttpStatus; message: string }> =
       status: HttpStatus.NOT_FOUND,
       message: 'Referenced resource not found',
     },
-    '22P02': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
-    '22007': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
-    '22008': { status: HttpStatus.BAD_REQUEST, message: 'Invalid input' },
+    '22P02': INVALID_INPUT,
+    '22007': INVALID_INPUT,
+    '22008': INVALID_INPUT,
+    '22001': INVALID_INPUT,
+    '23514': INVALID_INPUT,
   };
 
 const fromHttpException = (exception: HttpException): ErrorResponse => {
@@ -70,6 +83,18 @@ const toErrorResponse = (exception: unknown): ErrorResponse => {
   };
 };
 
+const toErrorAck = ({ status, body }: ErrorResponse): ErrorAck => {
+  const message = 'message' in body ? body.message : undefined;
+
+  return {
+    ok: false,
+    error: {
+      statusCode: status,
+      message: Array.isArray(message) ? message.join('; ') : String(message),
+    },
+  };
+};
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -77,28 +102,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const { status, body } = toErrorResponse(exception);
+    const errorResponse = toErrorResponse(exception);
 
-    if (status >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
+    if (errorResponse.status >= Number(HttpStatus.INTERNAL_SERVER_ERROR)) {
       this.logger.error(
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
 
     if (host.getType() === 'ws') {
-      host
-        .switchToWs()
-        .getClient<Socket>()
-        .emit('exception', { status: 'error', ...body });
+      const acknowledge = host.getArgByIndex<
+        ((errorAck: ErrorAck) => void) | undefined
+      >(WS_ACK_ARG_INDEX);
+      if (typeof acknowledge === 'function') {
+        acknowledge(toErrorAck(errorResponse));
+      }
       return;
     }
 
     this.httpAdapterHost.httpAdapter.reply(
       host.switchToHttp().getResponse(),
-      body,
-      status,
+      errorResponse.body,
+      errorResponse.status,
     );
   }
 }
 
-export { toErrorResponse };
+export { toErrorAck, toErrorResponse };
+export type { ErrorAck };

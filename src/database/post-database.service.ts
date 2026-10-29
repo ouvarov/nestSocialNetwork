@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
 
 import type { Cursor } from '@/common/pagination/cursor';
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Likes } from '@/database/schemas/likes.schema';
 import { Posts } from '@/database/schemas/posts.schema';
 
@@ -30,10 +30,7 @@ const postColumns = (viewerId: string) => ({
 
 @Injectable()
 export class PostDatabaseOrmService {
-  constructor(
-    @Inject('DRIZZLE_ORM')
-    private readonly Drizzle: ReturnType<typeof drizzle>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   async createPost({
     userId,
@@ -44,7 +41,8 @@ export class PostDatabaseOrmService {
     imageUrl?: string;
     text: string;
   }): Promise<string> {
-    const [post] = await this.Drizzle.insert(Posts)
+    const [post] = await this.db
+      .insert(Posts)
       .values({ owner_id: userId, image_url: imageUrl ?? null, text })
       .returning({ postId: Posts.post_id });
 
@@ -52,7 +50,8 @@ export class PostDatabaseOrmService {
   }
 
   async findPost(postId: string, viewerId: string): Promise<PostRow | null> {
-    const [post] = await this.Drizzle.select(postColumns(viewerId))
+    const [post] = await this.db
+      .select(postColumns(viewerId))
       .from(Posts)
       .where(eq(Posts.post_id, postId));
 
@@ -74,7 +73,8 @@ export class PostDatabaseOrmService {
       ? sql`(${Posts.created}, ${Posts.post_id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
       : undefined;
 
-    return this.Drizzle.select(postColumns(viewerId))
+    return this.db
+      .select(postColumns(viewerId))
       .from(Posts)
       .where(and(eq(Posts.owner_id, ownerId), isBeforeCursor))
       .orderBy(desc(Posts.created), desc(Posts.post_id))
@@ -82,19 +82,21 @@ export class PostDatabaseOrmService {
   }
 
   async like(postId: string, userId: string): Promise<void> {
-    await this.Drizzle.insert(Likes)
+    await this.db
+      .insert(Likes)
       .values({ post_id: postId, user_id: userId })
       .onConflictDoNothing();
   }
 
   async unlike(postId: string, userId: string): Promise<void> {
-    await this.Drizzle.delete(Likes).where(
-      and(eq(Likes.post_id, postId), eq(Likes.user_id, userId)),
-    );
+    await this.db
+      .delete(Likes)
+      .where(and(eq(Likes.post_id, postId), eq(Likes.user_id, userId)));
   }
 
   async deletePost(postId: string, ownerId: string): Promise<boolean> {
-    const deleted = await this.Drizzle.delete(Posts)
+    const deleted = await this.db
+      .delete(Posts)
       .where(and(eq(Posts.post_id, postId), eq(Posts.owner_id, ownerId)))
       .returning({ postId: Posts.post_id });
 

@@ -28,14 +28,13 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { LoginAuthDto } from './dto/login-auth.dto';
 import { Public } from './public.decorator';
+import { CREDENTIALS_RATE_LIMIT } from './rate-limits';
 import {
   REFRESH_COOKIE_NAME,
   clearRefreshCookieOptions,
   readRefreshCookie,
   refreshCookieOptions,
 } from './refresh-cookie';
-
-const CREDENTIALS_RATE_LIMIT = { default: { ttl: 60_000, limit: 5 } };
 
 @ApiTags('Auth')
 @Public()

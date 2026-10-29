@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import {
   RefreshTokens,
   type RefreshToken,
@@ -23,17 +23,15 @@ const toRow = ({ tokenId, userId, familyId, expiresAt }: NewRefreshToken) => ({
 
 @Injectable()
 export class RefreshTokenDatabaseService {
-  constructor(
-    @Inject('DRIZZLE_ORM')
-    private readonly Drizzle: ReturnType<typeof drizzle>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   async create(token: NewRefreshToken): Promise<void> {
-    await this.Drizzle.insert(RefreshTokens).values(toRow(token));
+    await this.db.insert(RefreshTokens).values(toRow(token));
   }
 
   async findById(tokenId: string): Promise<RefreshToken | null> {
-    const [token] = await this.Drizzle.select()
+    const [token] = await this.db
+      .select()
       .from(RefreshTokens)
       .where(eq(RefreshTokens.token_id, tokenId));
 
@@ -44,7 +42,7 @@ export class RefreshTokenDatabaseService {
     currentTokenId: string,
     nextToken: NewRefreshToken,
   ): Promise<boolean> {
-    return this.Drizzle.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
       const revoked = await tx
         .update(RefreshTokens)
         .set({ revoked_at: new Date(), replaced_by: nextToken.tokenId })
@@ -63,19 +61,18 @@ export class RefreshTokenDatabaseService {
     });
   }
 
-  async revoke(tokenId: string): Promise<void> {
-    await this.Drizzle.update(RefreshTokens)
-      .set({ revoked_at: new Date() })
-      .where(
-        and(
-          eq(RefreshTokens.token_id, tokenId),
-          isNull(RefreshTokens.revoked_at),
-        ),
-      );
+  async deleteExpiredBefore(now: Date): Promise<number> {
+    const deleted = await this.db
+      .delete(RefreshTokens)
+      .where(lt(RefreshTokens.expires_at, now))
+      .returning({ tokenId: RefreshTokens.token_id });
+
+    return deleted.length;
   }
 
   async revokeFamily(familyId: string): Promise<void> {
-    await this.Drizzle.update(RefreshTokens)
+    await this.db
+      .update(RefreshTokens)
       .set({ revoked_at: new Date() })
       .where(
         and(

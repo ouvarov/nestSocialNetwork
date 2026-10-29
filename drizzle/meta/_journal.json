@@ -22,6 +22,27 @@
       "when": 1792691519366,
       "tag": "0002_nullable_post_image",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793216535750,
+      "tag": "0003_email_lower",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793216544339,
+      "tag": "0004_direct_chats",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793216548072,
+      "tag": "0005_account_deletion",
+      "breakpoints": true
     }
   ]
 }

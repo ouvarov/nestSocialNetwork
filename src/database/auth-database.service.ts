@@ -1,14 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Users, type User } from '@/database/schemas/users.schema';
-import { drizzle } from 'drizzle-orm/postgres-js';
 
 @Injectable()
 export class AuthDatabaseService {
-  constructor(
-    @Inject('DRIZZLE_ORM')
-    private readonly Drizzle: ReturnType<typeof drizzle>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   async createUser({
     userName,
@@ -19,7 +16,8 @@ export class AuthDatabaseService {
     email: string;
     password: string;
   }): Promise<User> {
-    const user = await this.Drizzle.insert(Users)
+    const user = await this.db
+      .insert(Users)
       .values({
         user_name: userName,
         email,

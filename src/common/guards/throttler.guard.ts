@@ -2,7 +2,7 @@ import { type ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Socket } from 'socket.io';
 
-import { findSocketUser } from '@/auth/socket-user';
+import { findSocketSession } from '@/auth/socket-user';
 import type { ProxiedRequest } from '@/common/proxy/require-proxy';
 
 @Injectable()
@@ -11,7 +11,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     if (context.getType() !== 'ws') return super.getRequestResponse(context);
 
     const client = context.switchToWs().getClient<Socket>();
-    const user = findSocketUser(client);
+    const user = findSocketSession(client)?.user;
 
     return {
       req: {

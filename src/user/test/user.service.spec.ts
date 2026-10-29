@@ -1,10 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 
+import type { CacheService } from '@/cache/cache.service';
 import { MemoryCacheService } from '@/cache/memory-cache.service';
 import type {
   PublicUser,
   UserDatabaseOrmService,
 } from '@/database/user-database.service';
+import type { UserSocketsService } from '@/realtime/user-sockets.service';
+import type { StorageService } from '@/storage/storage.service';
 
 import { UserService } from '../user.service';
 
@@ -16,18 +20,48 @@ const ADA: PublicUser = {
   created: new Date('2026-01-01T00:00:00Z'),
 };
 
-const createUserService = (users: PublicUser[]) => {
+const PASSWORD = 'correct-horse-battery';
+const TEST_HASH_ROUNDS = 4;
+
+const createUserService = (
+  users: PublicUser[],
+  storage: Partial<StorageService> = {},
+  cache: CacheService = new MemoryCacheService(),
+) => {
   let databaseReads = 0;
+  const deletedUserIds: string[] = [];
+  const disconnectedUserIds: string[] = [];
+  const passwordHash = bcrypt.hashSync(PASSWORD, TEST_HASH_ROUNDS);
+  const findUser = (id: string) =>
+    users.find((user) => user.user_id === id && !deletedUserIds.includes(id));
+
   const database = {
     findPublicById: (id: string) => {
       databaseReads += 1;
-      return Promise.resolve(users.find((user) => user.user_id === id) ?? null);
+      return Promise.resolve(findUser(id) ?? null);
+    },
+    findById: (id: string) => {
+      const user = findUser(id);
+      return Promise.resolve(user ? { ...user, password: passwordHash } : null);
+    },
+    deleteUser: (id: string) => {
+      deletedUserIds.push(id);
+      return Promise.resolve(true);
     },
   } as unknown as UserDatabaseOrmService;
+  const userSockets = {
+    disconnectUser: (id: string) => disconnectedUserIds.push(id),
+  } as unknown as UserSocketsService;
+  const storageService = {
+    removeDirectory: () => Promise.resolve(),
+    ...storage,
+  } as unknown as StorageService;
 
   return {
-    userService: new UserService(database, new MemoryCacheService()),
+    userService: new UserService(database, cache, userSockets, storageService),
     databaseReads: () => databaseReads,
+    deletedUserIds,
+    disconnectedUserIds,
   };
 };
 
@@ -53,5 +87,73 @@ describe('UserService.findProfile', () => {
       NotFoundException,
     );
     expect(databaseReads()).toBe(2);
+  });
+});
+
+describe('UserService.deleteAccount', () => {
+  it('keeps the account when the password is wrong', async () => {
+    const { userService, deletedUserIds } = createUserService([ADA]);
+
+    await expect(
+      userService.deleteAccount(ADA.user_id, 'wrong-password'),
+    ).rejects.toThrow(new ForbiddenException('Wrong password'));
+    expect(deletedUserIds).toEqual([]);
+  });
+
+  it('deletes the account, closes its sockets and forgets the cached profile', async () => {
+    const { userService, deletedUserIds, disconnectedUserIds } =
+      createUserService([ADA]);
+    await userService.findProfile(ADA.user_id);
+
+    await userService.deleteAccount(ADA.user_id, PASSWORD);
+
+    expect(deletedUserIds).toEqual([ADA.user_id]);
+    expect(disconnectedUserIds).toEqual([ADA.user_id]);
+    await expect(userService.findProfile(ADA.user_id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('removes the images of the user', async () => {
+    const removedPaths: string[] = [];
+    const { userService } = createUserService([ADA], {
+      removeDirectory: (path: string) => {
+        removedPaths.push(path);
+        return Promise.resolve();
+      },
+    });
+
+    await userService.deleteAccount(ADA.user_id, PASSWORD);
+
+    expect(removedPaths).toEqual([`users/${ADA.user_id}/`]);
+  });
+
+  it('still succeeds when the images cannot be removed', async () => {
+    const { userService, deletedUserIds } = createUserService([ADA], {
+      removeDirectory: () => Promise.reject(new Error('storage is down')),
+    });
+
+    await expect(
+      userService.deleteAccount(ADA.user_id, PASSWORD),
+    ).resolves.toBeUndefined();
+    expect(deletedUserIds).toEqual([ADA.user_id]);
+  });
+
+  it('still succeeds when the cache is down', async () => {
+    const brokenCache = {
+      get: () => Promise.resolve(undefined),
+      set: () => Promise.resolve(),
+      delete: () => Promise.reject(new Error('redis is down')),
+    } as unknown as CacheService;
+    const { userService, deletedUserIds } = createUserService(
+      [ADA],
+      {},
+      brokenCache,
+    );
+
+    await expect(
+      userService.deleteAccount(ADA.user_id, PASSWORD),
+    ).resolves.toBeUndefined();
+    expect(deletedUserIds).toEqual([ADA.user_id]);
   });
 });

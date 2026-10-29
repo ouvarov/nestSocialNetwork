@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { StorageService } from './storage.service';
@@ -22,6 +22,10 @@ class LocalStorageService extends StorageService {
 
   publicUrl(path: string): string {
     return `${this.baseUrl}${LOCAL_UPLOADS_ROUTE}/${path}`;
+  }
+
+  async removeDirectory(path: string): Promise<void> {
+    await rm(join(LOCAL_UPLOADS_DIR, path), { recursive: true, force: true });
   }
 }
 

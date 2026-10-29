@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import type Redis from 'ioredis';
@@ -32,6 +33,7 @@ const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
       validate: validateEnv,
     }),
     RedisModule,
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       inject: [REDIS_CLIENT, ConfigService],
       useFactory: (redis: Redis | null, config: ConfigService<Env, true>) => ({

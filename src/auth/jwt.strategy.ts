@@ -4,9 +4,9 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import type { Env } from '@/config/env.schema';
-import type { AuthUser } from './current-user.decorator';
 
-type AccessTokenPayload = { sub: string; typ: string };
+import { type AccessTokenPayload, toAccessTokenUser } from './access-token';
+import type { AuthUser } from './current-user.decorator';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -19,8 +19,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: AccessTokenPayload): AuthUser {
-    if (payload.typ !== 'access') throw new UnauthorizedException();
+    const user = toAccessTokenUser(payload);
+    if (!user) throw new UnauthorizedException();
 
-    return { id: payload.sub };
+    return user;
   }
 }

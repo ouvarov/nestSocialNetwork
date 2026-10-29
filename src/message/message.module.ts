@@ -4,12 +4,13 @@ import { AuthModule } from '@/auth/auth.module';
 import { ChatModule } from '@/chat/chat.module';
 import { DatabaseModule } from '@/database/database.module';
 import { MessageDatabaseService } from '@/database/message-database.service';
+import { RealtimeModule } from '@/realtime/realtime.module';
 
 import { MessageGateway } from './message.gateway';
 import { MessageService } from './message.service';
 
 @Module({
   providers: [MessageGateway, MessageService, MessageDatabaseService],
-  imports: [DatabaseModule, AuthModule, ChatModule],
+  imports: [DatabaseModule, AuthModule, ChatModule, RealtimeModule],
 })
 export class MessageModule {}

@@ -1,31 +1,58 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { plainToClass } from 'class-transformer';
 
 import { CacheService } from '@/cache/cache.service';
+import { decodeCursor, toPage } from '@/common/pagination/cursor';
+import type { PageQueryDto } from '@/common/pagination/page-query.dto';
 import {
   type PublicUser,
   UserDatabaseOrmService,
 } from '@/database/user-database.service';
+import { UserSocketsService } from '@/realtime/user-sockets.service';
+import { StorageService } from '@/storage/storage.service';
+import { userImagesDir } from '@/storage/user-images';
 
-import { UserResponseDto } from './dto/user-response.dto';
+import { type UserPageDto, UserResponseDto } from './dto/user-response.dto';
 
 const PROFILE_TTL_SECONDS = 60;
+const USERS_PAGE_SIZE = 20;
 
 const profileKey = (id: string) => `user:profile:${id}`;
 
+const toUserResponse = (user: PublicUser): UserResponseDto =>
+  plainToClass(UserResponseDto, user, { excludeExtraneousValues: true });
+
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     private readonly userDatabaseService: UserDatabaseOrmService,
     private readonly cacheService: CacheService,
+    private readonly userSocketsService: UserSocketsService,
+    private readonly storageService: StorageService,
   ) {}
 
-  async findAll(): Promise<UserResponseDto[]> {
-    const users = await this.userDatabaseService.findAllPublic();
-
-    return plainToClass(UserResponseDto, users, {
-      excludeExtraneousValues: true,
+  async findAll({
+    limit = USERS_PAGE_SIZE,
+    cursor,
+  }: PageQueryDto): Promise<UserPageDto> {
+    const rows = await this.userDatabaseService.findPublicPage({
+      limit,
+      cursor: cursor ? decodeCursor(cursor) : undefined,
     });
+
+    return toPage(rows, limit, toUserResponse, (row) => ({
+      createdAt: row.createdCursor,
+      id: row.user_id,
+    }));
   }
 
   async findProfile(id: string): Promise<UserResponseDto> {
@@ -33,9 +60,7 @@ export class UserService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    return plainToClass(UserResponseDto, user, {
-      excludeExtraneousValues: true,
-    });
+    return toUserResponse(user);
   }
 
   private async findPublicProfile(id: string): Promise<PublicUser | null> {
@@ -58,5 +83,40 @@ export class UserService {
 
   async findOneByEmail(email: string) {
     return await this.userDatabaseService.findByEmail(email);
+  }
+
+  exists(id: string): Promise<boolean> {
+    return this.userDatabaseService.exists(id);
+  }
+
+  async deleteAccount(userId: string, password: string): Promise<void> {
+    const user = await this.userDatabaseService.findById(userId);
+    if (!user) throw new UnauthorizedException();
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) throw new ForbiddenException('Wrong password');
+
+    const isDeleted = await this.userDatabaseService.deleteUser(userId);
+    if (!isDeleted) throw new UnauthorizedException();
+
+    this.userSocketsService.disconnectUser(userId);
+    await Promise.all([
+      this.cacheService
+        .delete(profileKey(userId))
+        .catch((error: unknown) =>
+          this.logCleanupFailure('cached profile', userId, error),
+        ),
+      this.storageService
+        .removeDirectory(userImagesDir(userId))
+        .catch((error: unknown) =>
+          this.logCleanupFailure('images', userId, error),
+        ),
+    ]);
+  }
+
+  private logCleanupFailure(what: string, userId: string, error: unknown) {
+    this.logger.warn(
+      `The ${what} of deleted user ${userId} was not removed: ${String(error)}`,
+    );
   }
 }

@@ -8,9 +8,10 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Put,
+  Query,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -20,11 +21,16 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentUser, type AuthUser } from '@/auth/current-user.decorator';
+import { PageQueryDto } from '@/common/pagination/page-query.dto';
 
 import { ChatService } from './chat.service';
-import { ChatDto, ChatIdDto, ChatSummaryDto } from './dto/chat-response.dto';
+import {
+  ChatDto,
+  ChatIdDto,
+  ChatSummaryDto,
+  MessagePageDto,
+} from './dto/chat-response.dto';
 import { CreateChatDto } from './dto/create-chat.dto';
-import { UpdateChatDto } from './dto/update-chat.dto';
 
 @Controller('chat')
 @ApiTags('Chat')
@@ -36,17 +42,22 @@ export class ChatController {
   @Post('/create')
   @ApiCreatedResponse({
     type: ChatIdDto,
-    description: 'The existing chat when one has exactly these members',
+    description: 'The existing chat when you already have one with this user',
   })
+  @ApiBadRequestResponse({ description: 'A chat with yourself' })
   async create(
     @CurrentUser() user: AuthUser,
-    @Body() { userIds }: CreateChatDto,
+    @Body() { userId }: CreateChatDto,
   ): Promise<ChatIdDto> {
-    return { chatId: await this.chatService.create(user.id, userIds) };
+    return { chatId: await this.chatService.create(user.id, userId) };
   }
 
   @Get()
-  @ApiOkResponse({ type: [ChatSummaryDto] })
+  @ApiOkResponse({
+    type: [ChatSummaryDto],
+    description:
+      'Most recent first; chats you cleared come back on a new message',
+  })
   findAll(@CurrentUser() user: AuthUser): Promise<ChatSummaryDto[]> {
     return this.chatService.findAll(user.id);
   }
@@ -60,22 +71,26 @@ export class ChatController {
     return this.chatService.findOne(user.id, id);
   }
 
-  @Put('/update')
-  @ApiOkResponse({ type: ChatSummaryDto })
-  update(
+  @Get(':id/messages')
+  @ApiOkResponse({ type: MessagePageDto })
+  findMessages(
     @CurrentUser() user: AuthUser,
-    @Body() updateChatDto: UpdateChatDto,
-  ): Promise<ChatSummaryDto> {
-    return this.chatService.updateChatName(user.id, updateChatDto);
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() pageQuery: PageQueryDto,
+  ): Promise<MessagePageDto> {
+    return this.chatService.findMessages(user.id, id, pageQuery);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiNoContentResponse()
+  @ApiNoContentResponse({
+    description:
+      'Clears the history for you only; the chat is removed once nobody sees it',
+  })
   async delete(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    await this.chatService.deleteChat(user.id, id);
+    await this.chatService.clear(user.id, id);
   }
 }
