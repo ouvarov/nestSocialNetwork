@@ -66,4 +66,14 @@ describe('RedisCacheService', () => {
 
     expect(store.has('key')).toBe(false);
   });
+
+  it('treats a failing redis as a cache miss', async () => {
+    const failure = () => Promise.reject(new Error('Command timed out'));
+    const redis = { get: failure, set: failure, del: failure };
+    const cache = new RedisCacheService(redis as unknown as Redis);
+
+    await expect(cache.set('key', 'value', 60)).resolves.toBeUndefined();
+    await expect(cache.get('key')).resolves.toBeUndefined();
+    await expect(cache.delete('key')).resolves.toBeUndefined();
+  });
 });

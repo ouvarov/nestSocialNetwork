@@ -60,6 +60,7 @@ describe('validateEnv', () => {
       validateEnv({
         ...validEnv,
         NODE_ENV: 'production',
+        ORIGIN_SECRET: 'c'.repeat(32),
         RATE_LIMIT_DISABLED: 'true',
       }),
     ).toThrow(/must not be set in production[\s\S]*RATE_LIMIT_DISABLED/);
@@ -94,6 +95,19 @@ describe('validateEnv', () => {
     expect(
       validateEnv({ ...validEnv, ORIGIN_SECRET: '' }).ORIGIN_SECRET,
     ).toBeUndefined();
+  });
+
+  it('requires ORIGIN_SECRET in production', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, NODE_ENV: 'production', ORIGIN_SECRET: '' }),
+    ).toThrow(/required in production[\s\S]*ORIGIN_SECRET/);
+    expect(
+      validateEnv({
+        ...validEnv,
+        NODE_ENV: 'production',
+        ORIGIN_SECRET: 'c'.repeat(32),
+      }).ORIGIN_SECRET,
+    ).toBe('c'.repeat(32));
   });
 
   it('rejects an ORIGIN_SECRET shorter than 32 characters', () => {

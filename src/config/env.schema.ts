@@ -48,6 +48,14 @@ const envSchema = envObjectSchema.superRefine((env, context) => {
     });
   }
 
+  if (env.NODE_ENV === 'production' && !env.ORIGIN_SECRET) {
+    context.addIssue({
+      code: 'custom',
+      path: ['ORIGIN_SECRET'],
+      message: 'required in production',
+    });
+  }
+
   if (env.STORAGE_DRIVER !== 'supabase') return;
 
   for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const) {

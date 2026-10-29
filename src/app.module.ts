@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerStorageService } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import type Redis from 'ioredis';
 
@@ -10,6 +10,7 @@ import { JwtAuthGuard } from './auth/auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { AppThrottlerGuard } from './common/guards/throttler.guard';
+import { FallbackThrottlerStorage } from './common/throttler/fallback-throttler-storage';
 import { type Env, validateEnv } from './config/env.schema';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
@@ -39,7 +40,12 @@ const DEFAULT_RATE_LIMIT = { ttl: 60_000, limit: 100 };
       useFactory: (redis: Redis | null, config: ConfigService<Env, true>) => ({
         throttlers: [DEFAULT_RATE_LIMIT],
         skipIf: () => config.get('RATE_LIMIT_DISABLED', { infer: true }),
-        storage: redis ? new ThrottlerStorageRedisService(redis) : undefined,
+        storage: redis
+          ? new FallbackThrottlerStorage(
+              new ThrottlerStorageRedisService(redis),
+              new ThrottlerStorageService(),
+            )
+          : undefined,
       }),
     }),
     AuthModule,
