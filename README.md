@@ -122,7 +122,7 @@ Nest 12 packages are ESM-only. The app stays CommonJS and loads them through `re
 ## Testing
 
 ```bash
-npm test           # 80 unit tests
+npm test           # unit tests
 npm run test:e2e   # 74 e2e tests; needs DATABASE_URL and a migrated database
 ```
 

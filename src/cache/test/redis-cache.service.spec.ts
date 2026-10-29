@@ -8,6 +8,7 @@ const createRedis = () => {
   return {
     store,
     redis: {
+      status: 'ready',
       get: jest.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
       set: jest.fn((key: string, value: string) => {
         store.set(key, value);
@@ -67,9 +68,23 @@ describe('RedisCacheService', () => {
     expect(store.has('key')).toBe(false);
   });
 
+  it('skips redis while it is not connected', async () => {
+    const { redis } = createRedis();
+    const cache = new RedisCacheService({
+      ...redis,
+      status: 'reconnecting',
+    } as unknown as Redis);
+
+    await cache.set('key', 'value', 60);
+
+    expect(await cache.get('key')).toBeUndefined();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+
   it('treats a failing redis as a cache miss', async () => {
     const failure = () => Promise.reject(new Error('Command timed out'));
-    const redis = { get: failure, set: failure, del: failure };
+    const redis = { status: 'ready', get: failure, set: failure, del: failure };
     const cache = new RedisCacheService(redis as unknown as Redis);
 
     await expect(cache.set('key', 'value', 60)).resolves.toBeUndefined();
