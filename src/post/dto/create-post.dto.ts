@@ -3,7 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUrl,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -11,15 +11,12 @@ const MAX_POST_TEXT_LENGTH = 2000;
 
 export class CreatePostDto {
   @ApiPropertyOptional({
-    description: 'A URL returned by POST /api/upload for the caller',
+    format: 'uuid',
+    description: 'An id returned by POST /api/upload for the caller',
   })
   @IsOptional()
-  @IsUrl({
-    protocols: ['http', 'https'],
-    require_protocol: true,
-    require_tld: false,
-  })
-  imageUrl?: string;
+  @IsUUID()
+  imageUploadId?: string;
 
   @ApiProperty({ example: 'Shipping a new release this weekend.' })
   @IsString()

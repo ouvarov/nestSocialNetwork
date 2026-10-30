@@ -169,19 +169,20 @@
         ]
       }
     },
-    "/api/users/{id}": {
-      "get": {
-        "operationId": "UserController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
+    "/api/users/me": {
+      "patch": {
+        "operationId": "UserController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "",
@@ -193,8 +194,11 @@
               }
             }
           },
-          "404": {
-            "description": "User not found"
+          "400": {
+            "description": "Invalid field, or an avatar upload that is not yours"
+          },
+          "429": {
+            "description": ""
           }
         },
         "security": [
@@ -205,9 +209,7 @@
         "tags": [
           "Users"
         ]
-      }
-    },
-    "/api/users/me": {
+      },
       "delete": {
         "operationId": "UserController_deleteMe",
         "parameters": [],
@@ -227,6 +229,130 @@
           },
           "403": {
             "description": "Wrong password"
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "get": {
+        "operationId": "UserController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/users/{id}/follow": {
+      "put": {
+        "operationId": "FollowController_follow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowStateDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "You cannot follow yourself"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "429": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "operationId": "FollowController_unfollow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowStateDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "You cannot follow yourself"
+          },
+          "404": {
+            "description": "User not found"
           },
           "429": {
             "description": ""
@@ -675,7 +801,10 @@
             "description": "Larger than 5 MB"
           },
           "415": {
-            "description": "Not a PNG, JPEG, WebP or GIF"
+            "description": "Not a readable PNG, JPEG, WebP or GIF"
+          },
+          "429": {
+            "description": ""
           }
         },
         "security": [
@@ -791,13 +920,13 @@
       "UserResponseDto": {
         "type": "object",
         "properties": {
-          "userName": {
-            "type": "string",
-            "example": "Ada Lovelace"
-          },
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
           },
           "imageUrl": {
             "type": "string",
@@ -812,8 +941,8 @@
           }
         },
         "required": [
-          "userName",
           "id",
+          "userName",
           "imageUrl",
           "description",
           "created"
@@ -852,6 +981,47 @@
           "password"
         ]
       },
+      "PersonResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "followersCount": {
+            "type": "number",
+            "example": 41
+          },
+          "isFollowedByMe": {
+            "type": "boolean",
+            "description": "Whether the caller follows this user"
+          }
+        },
+        "required": [
+          "id",
+          "userName",
+          "imageUrl",
+          "description",
+          "created",
+          "followersCount",
+          "isFollowedByMe"
+        ]
+      },
       "UserPageDto": {
         "type": "object",
         "properties": {
@@ -859,7 +1029,7 @@
             "description": "Newest members first",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/UserResponseDto"
+              "$ref": "#/components/schemas/PersonResponseDto"
             }
           },
           "nextCursor": {
@@ -871,6 +1041,72 @@
         "required": [
           "items",
           "nextCursor"
+        ]
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace",
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "avatarUploadId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "An id from POST /api/upload by the caller; null removes the avatar"
+          }
+        }
+      },
+      "ProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "followersCount": {
+            "type": "number",
+            "example": 24
+          },
+          "followingCount": {
+            "type": "number",
+            "example": 2
+          },
+          "isFollowedByMe": {
+            "type": "boolean",
+            "description": "Whether the caller follows this user"
+          }
+        },
+        "required": [
+          "id",
+          "userName",
+          "imageUrl",
+          "description",
+          "created",
+          "followersCount",
+          "followingCount",
+          "isFollowedByMe"
         ]
       },
       "DeleteAccountDto": {
@@ -885,12 +1121,39 @@
           "password"
         ]
       },
+      "FollowStateDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isFollowedByMe": {
+            "type": "boolean"
+          },
+          "followersCount": {
+            "type": "number",
+            "example": 24
+          },
+          "followingCount": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "userId",
+          "isFollowedByMe",
+          "followersCount",
+          "followingCount"
+        ]
+      },
       "CreatePostDto": {
         "type": "object",
         "properties": {
-          "imageUrl": {
+          "imageUploadId": {
             "type": "string",
-            "description": "A URL returned by POST /api/upload for the caller"
+            "format": "uuid",
+            "description": "An id returned by POST /api/upload for the caller"
           },
           "text": {
             "type": "string",
@@ -916,6 +1179,15 @@
             "type": "string",
             "nullable": true
           },
+          "imageWidth": {
+            "type": "number",
+            "nullable": true,
+            "description": "Null for posts without an image or from before sizes were stored"
+          },
+          "imageHeight": {
+            "type": "number",
+            "nullable": true
+          },
           "text": {
             "type": "string"
           },
@@ -936,6 +1208,8 @@
           "id",
           "ownerId",
           "imageUrl",
+          "imageWidth",
+          "imageHeight",
           "text",
           "created",
           "likeCount",
@@ -1118,13 +1392,29 @@
       "UploadResponseDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Pass as imageUploadId or avatarUploadId"
+          },
           "url": {
             "type": "string",
             "example": "https://cdn.example.com/users/<id>/<uuid>.png"
+          },
+          "width": {
+            "type": "number",
+            "example": 1200
+          },
+          "height": {
+            "type": "number",
+            "example": 800
           }
         },
         "required": [
-          "url"
+          "id",
+          "url",
+          "width",
+          "height"
         ]
       },
       "LivenessDto": {

@@ -5,11 +5,15 @@ import type { Cursor } from '@/common/pagination/cursor';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { Likes } from '@/database/schemas/likes.schema';
 import { Posts } from '@/database/schemas/posts.schema';
+import { Uploads } from '@/database/schemas/uploads.schema';
 
 type PostRow = {
   postId: string;
   ownerId: string;
-  imageUrl: string | null;
+  imageKey: string | null;
+  legacyImageUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
   text: string;
   created: Date;
   createdCursor: string;
@@ -20,7 +24,10 @@ type PostRow = {
 const postColumns = (viewerId: string) => ({
   postId: Posts.post_id,
   ownerId: Posts.owner_id,
-  imageUrl: Posts.image_url,
+  imageKey: Uploads.storage_key,
+  legacyImageUrl: Posts.image_url,
+  imageWidth: Uploads.width,
+  imageHeight: Uploads.height,
   text: Posts.text,
   created: Posts.created,
   createdCursor: sql<string>`${Posts.created}::text`,
@@ -34,16 +41,20 @@ export class PostDatabaseOrmService {
 
   async createPost({
     userId,
-    imageUrl,
+    imageUploadId,
     text,
   }: {
     userId: string;
-    imageUrl?: string;
+    imageUploadId?: string;
     text: string;
   }): Promise<string> {
     const [post] = await this.db
       .insert(Posts)
-      .values({ owner_id: userId, image_url: imageUrl ?? null, text })
+      .values({
+        owner_id: userId,
+        image_upload_id: imageUploadId ?? null,
+        text,
+      })
       .returning({ postId: Posts.post_id });
 
     return post.postId;
@@ -53,6 +64,7 @@ export class PostDatabaseOrmService {
     const [post] = await this.db
       .select(postColumns(viewerId))
       .from(Posts)
+      .leftJoin(Uploads, eq(Uploads.upload_id, Posts.image_upload_id))
       .where(eq(Posts.post_id, postId));
 
     return post ?? null;
@@ -76,6 +88,7 @@ export class PostDatabaseOrmService {
     return this.db
       .select(postColumns(viewerId))
       .from(Posts)
+      .leftJoin(Uploads, eq(Uploads.upload_id, Posts.image_upload_id))
       .where(and(eq(Posts.owner_id, ownerId), isBeforeCursor))
       .orderBy(desc(Posts.created), desc(Posts.post_id))
       .limit(limit + 1);
@@ -94,13 +107,16 @@ export class PostDatabaseOrmService {
       .where(and(eq(Likes.post_id, postId), eq(Likes.user_id, userId)));
   }
 
-  async deletePost(postId: string, ownerId: string): Promise<boolean> {
-    const deleted = await this.db
+  async deletePost(
+    postId: string,
+    ownerId: string,
+  ): Promise<{ imageUploadId: string | null } | null> {
+    const [deleted] = await this.db
       .delete(Posts)
       .where(and(eq(Posts.post_id, postId), eq(Posts.owner_id, ownerId)))
-      .returning({ postId: Posts.post_id });
+      .returning({ imageUploadId: Posts.image_upload_id });
 
-    return deleted.length > 0;
+    return deleted ?? null;
   }
 }
 

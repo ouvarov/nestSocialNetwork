@@ -10,6 +10,17 @@ export class PostResponseDto {
   @ApiProperty({ type: String, nullable: true })
   imageUrl: string | null;
 
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Null for posts without an image or from before sizes were stored',
+  })
+  imageWidth: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  imageHeight: number | null;
+
   @ApiProperty()
   text: string;
 

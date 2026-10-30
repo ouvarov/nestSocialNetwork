@@ -5,22 +5,51 @@ import type { Cursor } from '@/common/pagination/cursor';
 import { deleteChatsNobodySees, lockChats } from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
+import { Follows } from '@/database/schemas/follows.schema';
+import { Uploads } from '@/database/schemas/uploads.schema';
 import { Users, type User } from '@/database/schemas/users.schema';
 
-type PublicUser = Pick<
-  User,
-  'user_id' | 'user_name' | 'image_url' | 'description' | 'created'
->;
+type PublicUser = {
+  id: string;
+  userName: string;
+  description: string;
+  created: Date;
+  imageKey: string | null;
+  legacyImageUrl: string | null;
+};
 
-type PublicUserRow = PublicUser & { createdCursor: string };
+type PublicProfile = PublicUser & {
+  followersCount: number;
+  followingCount: number;
+};
+
+type PersonRow = PublicUser & {
+  followersCount: number;
+  isFollowedByMe: boolean;
+  createdCursor: string;
+};
+
+type ProfilePatch = {
+  userName?: string;
+  description?: string;
+  avatarUploadId?: string | null;
+};
+
+type ProfileUpdate = { previousAvatarUploadId: string | null };
 
 const publicColumns = {
-  user_id: Users.user_id,
-  user_name: Users.user_name,
-  image_url: Users.image_url,
+  id: Users.user_id,
+  userName: Users.user_name,
   description: Users.description,
   created: Users.created,
+  imageKey: Uploads.storage_key,
+  legacyImageUrl: Users.image_url,
 } satisfies Record<keyof PublicUser, unknown>;
+
+const followersCount = sql<number>`(select count(*)::int from ${Follows} follower where follower.followee_id = ${Users}.user_id)`;
+const followingCount = sql<number>`(select count(*)::int from ${Follows} followee where followee.follower_id = ${Users}.user_id)`;
+const isFollowedBy = (viewerId: string) =>
+  sql<boolean>`exists(select 1 from ${Follows} viewer_follow where viewer_follow.follower_id = ${viewerId} and viewer_follow.followee_id = ${Users}.user_id)`;
 
 @Injectable()
 export class UserDatabaseOrmService {
@@ -44,13 +73,14 @@ export class UserDatabaseOrmService {
     return user ?? null;
   }
 
-  async findPublicById(id: string): Promise<PublicUser | null> {
-    const [user] = await this.db
-      .select(publicColumns)
+  async findPublicProfile(id: string): Promise<PublicProfile | null> {
+    const [profile] = await this.db
+      .select({ ...publicColumns, followersCount, followingCount })
       .from(Users)
+      .leftJoin(Uploads, eq(Uploads.upload_id, Users.avatar_upload_id))
       .where(eq(Users.user_id, id));
 
-    return user ?? null;
+    return profile ?? null;
   }
 
   async exists(id: string): Promise<boolean> {
@@ -62,13 +92,15 @@ export class UserDatabaseOrmService {
     return user !== undefined;
   }
 
-  findPublicPage({
+  findPeoplePage({
+    viewerId,
     limit,
     cursor,
   }: {
+    viewerId: string;
     limit: number;
     cursor?: Cursor;
-  }): Promise<PublicUserRow[]> {
+  }): Promise<PersonRow[]> {
     const isBeforeCursor = cursor
       ? sql`(${Users.created}, ${Users.user_id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`
       : undefined;
@@ -76,12 +108,41 @@ export class UserDatabaseOrmService {
     return this.db
       .select({
         ...publicColumns,
+        followersCount,
+        isFollowedByMe: isFollowedBy(viewerId),
         createdCursor: sql<string>`${Users.created}::text`,
       })
       .from(Users)
+      .leftJoin(Uploads, eq(Uploads.upload_id, Users.avatar_upload_id))
       .where(isBeforeCursor)
       .orderBy(desc(Users.created), desc(Users.user_id))
       .limit(limit + 1);
+  }
+
+  updateProfile(
+    userId: string,
+    { userName, description, avatarUploadId }: ProfilePatch,
+  ): Promise<ProfileUpdate | null> {
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ avatarUploadId: Users.avatar_upload_id })
+        .from(Users)
+        .where(eq(Users.user_id, userId))
+        .for('update');
+
+      if (!current) return null;
+
+      await tx
+        .update(Users)
+        .set({
+          user_name: userName,
+          description,
+          avatar_upload_id: avatarUploadId,
+        })
+        .where(eq(Users.user_id, userId));
+
+      return { previousAvatarUploadId: current.avatarUploadId };
+    });
   }
 
   deleteUser(userId: string): Promise<boolean> {
@@ -106,4 +167,4 @@ export class UserDatabaseOrmService {
   }
 }
 
-export type { PublicUser, PublicUserRow };
+export type { PersonRow, ProfilePatch, PublicProfile, PublicUser };

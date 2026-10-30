@@ -28,7 +28,21 @@ const createUserStore = () => {
       Promise.resolve(
         [...users.values()].find((user) => user.email === email) ?? null,
       ),
-    findOneById: (id: string) => Promise.resolve(users.get(id) ?? null),
+    findUser: (id: string) => {
+      const user = users.get(id);
+
+      return Promise.resolve(
+        user
+          ? {
+              id: user.user_id,
+              userName: user.user_name,
+              imageUrl: null,
+              description: user.description,
+              created: user.created,
+            }
+          : null,
+      );
+    },
   };
 
   const authDatabaseService = {
@@ -51,6 +65,7 @@ const createUserStore = () => {
         email,
         password,
         image_url: null,
+        avatar_upload_id: null,
         description: '',
         created: new Date(),
       };
@@ -183,21 +198,24 @@ describe('AuthService', () => {
       const { authService } = createAuthService();
       await registerAda(authService);
 
-      const unknownEmail = authService.login({
-        email: 'nobody@example.com',
-        password: PASSWORD,
-      });
-      const wrongPassword = authService.login({
-        email: 'ada@example.com',
-        password: 'wrong-password',
-      });
+      const invalidCredentials = new UnauthorizedException(
+        'Invalid credentials',
+      );
 
-      await expect(unknownEmail).rejects.toThrow(
-        new UnauthorizedException('Invalid credentials'),
-      );
-      await expect(wrongPassword).rejects.toThrow(
-        new UnauthorizedException('Invalid credentials'),
-      );
+      await Promise.all([
+        expect(
+          authService.login({
+            email: 'nobody@example.com',
+            password: PASSWORD,
+          }),
+        ).rejects.toThrow(invalidCredentials),
+        expect(
+          authService.login({
+            email: 'ada@example.com',
+            password: 'wrong-password',
+          }),
+        ).rejects.toThrow(invalidCredentials),
+      ]);
     });
 
     it('starts a session for valid credentials', async () => {

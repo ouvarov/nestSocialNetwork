@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { Uploads } from './uploads.schema';
 import { Users } from './users.schema';
 
 const Posts = pgTable(
@@ -9,6 +10,10 @@ const Posts = pgTable(
       .notNull()
       .references(() => Users.user_id, { onDelete: 'cascade' }),
     image_url: text('image_url'),
+    image_upload_id: uuid('image_upload_id').references(
+      () => Uploads.upload_id,
+      { onDelete: 'set null' },
+    ),
     text: text('text').notNull(),
     created: timestamp('created', { withTimezone: true })
       .notNull()

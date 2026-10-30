@@ -24,6 +24,10 @@ class LocalStorageService extends StorageService {
     return `${this.baseUrl}${LOCAL_UPLOADS_ROUTE}/${path}`;
   }
 
+  async remove(path: string): Promise<void> {
+    await rm(join(LOCAL_UPLOADS_DIR, path), { force: true });
+  }
+
   async removeDirectory(path: string): Promise<void> {
     await rm(join(LOCAL_UPLOADS_DIR, path), { recursive: true, force: true });
   }

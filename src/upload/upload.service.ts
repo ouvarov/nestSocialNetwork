@@ -6,23 +6,27 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { UploadDatabaseService } from '@/database/upload-database.service';
 import { StorageService } from '@/storage/storage.service';
 import { userImagesDir } from '@/storage/user-images';
 import { UserService } from '@/user/user.service';
 
+import type { UploadResponseDto } from './dto/upload-response.dto';
+import { readImageDimensions } from './image-dimensions';
 import { detectImageType } from './image-type';
 
 @Injectable()
 export class UploadService {
   constructor(
     private readonly storageService: StorageService,
+    private readonly uploadDatabaseService: UploadDatabaseService,
     private readonly userService: UserService,
   ) {}
 
   async uploadImage(
     userId: string,
     file: Express.Multer.File | undefined,
-  ): Promise<string> {
+  ): Promise<UploadResponseDto> {
     if (!file) throw new BadRequestException('Image file is required');
     if (!(await this.userService.exists(userId))) {
       throw new UnauthorizedException();
@@ -36,8 +40,26 @@ export class UploadService {
       );
     }
 
-    const path = `${userImagesDir(userId)}${randomUUID()}.${imageType.extension}`;
+    const dimensions = readImageDimensions(file.buffer);
 
-    return this.storageService.save(path, file.buffer, imageType.contentType);
+    if (!dimensions) {
+      throw new UnsupportedMediaTypeException('Unreadable image');
+    }
+
+    const storageKey = `${userImagesDir(userId)}${randomUUID()}.${imageType.extension}`;
+    const url = await this.storageService.save(
+      storageKey,
+      file.buffer,
+      imageType.contentType,
+    );
+    const id = await this.uploadDatabaseService.create({
+      ownerId: userId,
+      storageKey,
+      contentType: imageType.contentType,
+      sizeBytes: file.buffer.length,
+      ...dimensions,
+    });
+
+    return { id, url, ...dimensions };
   }
 }

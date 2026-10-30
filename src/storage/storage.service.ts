@@ -7,6 +7,8 @@ abstract class StorageService {
 
   abstract publicUrl(path: string): string;
 
+  abstract remove(path: string): Promise<void>;
+
   abstract removeDirectory(path: string): Promise<void>;
 }
 

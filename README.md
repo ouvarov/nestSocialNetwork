@@ -27,8 +27,11 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
 - **Account deletion** behind the password: posts and likes go, messages stay in the other person's chat without a sender, uploads are removed.
 - **Posts with images:**
   - uploads go to Supabase Storage (local disk in dev);
-  - the type is checked from the file bytes, with a 5 MB limit;
-  - a post can only use images its author uploaded.
+  - the type and size are read from the file bytes, with a 5 MB limit;
+  - the database stores storage keys in an `uploads` table, not URLs; a post or avatar references an upload by id, and only its owner can use it;
+  - an image file is removed when nothing uses it anymore.
+- **Profiles:** name, bio and avatar via `PATCH /users/me`; the cached profile is dropped on every write.
+- **Follows:** idempotent `PUT` / `DELETE /users/:id/follow`; follower counts are cached with the profile, `isFollowedByMe` is computed per viewer.
 - **Feed:** cursor pagination that stays stable while new posts arrive. Likes are idempotent and report `likedByMe` per viewer.
 - **Direct chats:**
   - one chat per pair, enforced by a unique key, so a double click can't create two;
@@ -217,7 +220,7 @@ First deploy:
 
 - Add the Socket.IO Redis adapter and run two API replicas behind a load balancer.
 - Add notifications, read receipts and typing indicators.
-- Add follows and a personalised feed, plus full-text search with Postgres `tsvector`.
+- Add a personalised feed, plus full-text search with Postgres `tsvector`.
 - Add OpenTelemetry traces across HTTP, sockets and the database.
 
 ## Scripts

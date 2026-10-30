@@ -1,4 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { randomUUID } from 'node:crypto';
 
 import type {
   PostPageDto,
@@ -46,6 +47,8 @@ describe('creating posts', () => {
       id: expect.any(String) as string,
       ownerId: author.id,
       imageUrl: null,
+      imageWidth: null,
+      imageHeight: null,
       text: 'First post',
       created: expect.any(String) as string,
       likeCount: 0,
@@ -57,7 +60,14 @@ describe('creating posts', () => {
     ['no text', {}],
     ['empty text', { text: '' }],
     ['text over 2000 characters', { text: 'a'.repeat(2001) }],
-    ['an image URL that is not a URL', { text: 'Hi', imageUrl: 'nope' }],
+    [
+      'an image upload id that is not a UUID',
+      { text: 'Hi', imageUploadId: 'nope' },
+    ],
+    [
+      'the old imageUrl field',
+      { text: 'Hi', imageUrl: 'https://example.com/cat.png' },
+    ],
   ])('rejects %s', async (_case, body) => {
     await api(app)
       .post('/api/posts')
@@ -66,11 +76,11 @@ describe('creating posts', () => {
       .expect(400);
   });
 
-  it("rejects an image that is not the author's upload", async () => {
+  it('rejects an upload id that does not exist', async () => {
     await api(app)
       .post('/api/posts')
       .set(bearer(author))
-      .send({ text: 'Hi', imageUrl: 'https://example.com/cat.png' })
+      .send({ text: 'Hi', imageUploadId: randomUUID() })
       .expect(400);
   });
 });
