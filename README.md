@@ -34,7 +34,7 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
 - **Follows:** idempotent `PUT` / `DELETE /users/:id/follow`; follower counts are cached with the profile, `isFollowedByMe` is computed per viewer.
 - **Home feed** (`GET /feed`):
   - posts by people you follow and your own come first, then everyone else's, in one SQL query (`LATERAL` per followed author, an anti-join for the rest);
-  - the cursor keeps the moment the feed was opened, so new posts and a follow made mid-scroll don't shift or repeat pages;
+  - the cursor keeps the moment the feed was opened, so new posts and a follow made mid-scroll don't shift or repeat pages; an unfollow mid-scroll can bring back posts already shown, which the client drops by id (no soft-delete for follows on purpose);
   - every post carries its author, and image sizes so the client can reserve space.
 - **Posts:** cursor pagination per profile; authors can edit the text (`editedAt`). Likes are idempotent and report `likedByMe` per viewer.
 - **Direct chats:**

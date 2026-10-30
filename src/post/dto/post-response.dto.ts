@@ -87,7 +87,7 @@ export class FeedPageDto {
     type: String,
     nullable: true,
     description:
-      'Pass as cursor to get the next page; it keeps the moment the feed was opened, so new posts do not shift pages',
+      'Pass as cursor to get the next page; it keeps the moment the feed was opened, so new posts do not shift pages. An unfollow during the session can return posts already shown: dedupe by id',
   })
   nextCursor: string | null;
 }

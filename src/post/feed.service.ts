@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
-import { decodePageCursor, toPage } from '@/common/pagination/cursor';
+import { decodePageCursor, encodeCursor } from '@/common/pagination/cursor';
 import type { PageQueryDto } from '@/common/pagination/page-query.dto';
 import {
   FeedDatabaseService,
   type FeedCursor,
+  type FeedEntry,
   FOLLOWING_TIER,
 } from '@/database/feed-database.service';
 import { PostDatabaseOrmService } from '@/database/post-database.service';
@@ -27,6 +28,13 @@ const isFeedCursor = (value: unknown): value is FeedCursor =>
   typeof value.id === 'string' &&
   typeof value.since === 'string';
 
+const toFeedCursor = (entry: FeedEntry): FeedCursor => ({
+  tier: entry.tier,
+  createdAt: entry.createdCursor,
+  id: entry.postId,
+  since: entry.snapshotAt,
+});
+
 @Injectable()
 export class FeedService {
   constructor(
@@ -44,29 +52,29 @@ export class FeedService {
       limit,
       cursor: cursor ? decodePageCursor(cursor, isFeedCursor) : undefined,
     });
+    const hasMore = entries.length > limit;
+    const pageEntries = entries.slice(0, limit);
+    const lastEntry = pageEntries.at(-1);
     const posts = await this.postDatabaseService.findPostsByIds(
-      entries.map(({ postId }) => postId),
+      pageEntries.map(({ postId }) => postId),
       viewerId,
     );
     const postsById = new Map(posts.map((post) => [post.postId, post]));
-    const rows = entries.flatMap((entry) => {
-      const post = postsById.get(entry.postId);
-      return post ? [{ entry, post }] : [];
-    });
 
-    return toPage(
-      rows,
-      limit,
-      ({ entry, post }): FeedItemDto => ({
-        ...toPostResponse(this.storageService, post),
-        fromFollowing: entry.tier === FOLLOWING_TIER,
+    return {
+      items: pageEntries.flatMap((entry): FeedItemDto[] => {
+        const post = postsById.get(entry.postId);
+        if (!post) return [];
+
+        return [
+          {
+            ...toPostResponse(this.storageService, post),
+            fromFollowing: entry.tier === FOLLOWING_TIER,
+          },
+        ];
       }),
-      ({ entry }): FeedCursor => ({
-        tier: entry.tier,
-        createdAt: entry.createdCursor,
-        id: entry.postId,
-        since: entry.snapshotAt,
-      }),
-    );
+      nextCursor:
+        hasMore && lastEntry ? encodeCursor(toFeedCursor(lastEntry)) : null,
+    };
   }
 }

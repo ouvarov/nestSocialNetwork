@@ -60,22 +60,21 @@ const ours = (items: FeedItemDto[]) =>
     .filter(({ text }) => text.startsWith(`${RUN} `))
     .map((item) => ({ ...item, text: item.text.slice(RUN.length + 1) }));
 
-const MAX_FEED_PAGES = 200;
-
-const readWholeFeed = async (limit: number) => {
+const readFeedItems = async (
+  limit: number,
+  count: number,
+  as: TestUser = viewer,
+) => {
   const items: FeedItemDto[] = [];
   let cursor: string | null | undefined;
-  let pages = 0;
 
   do {
-    const page = await feedPage({ limit, cursor: cursor ?? undefined });
+    const page = await feedPage({ limit, cursor: cursor ?? undefined }, as);
     items.push(...page.items);
     cursor = page.nextCursor;
-    pages += 1;
-  } while (cursor && pages < MAX_FEED_PAGES);
+  } while (cursor && items.length < count);
 
-  expect(cursor).toBeNull();
-  return items;
+  return items.slice(0, count);
 };
 
 it('shows followed people and own posts first, then everyone else', async () => {
@@ -104,9 +103,9 @@ it('sends the author with every post', async () => {
 
 it('pages across both sections without gaps or repeats', async () => {
   const whole = (await feedPage({ limit: 50 })).items.map(({ id }) => id);
-  const paged = (await readWholeFeed(2)).map(({ id }) => id);
+  const paged = (await readFeedItems(2, whole.length)).map(({ id }) => id);
 
-  expect(paged.slice(0, whole.length)).toEqual(whole);
+  expect(paged).toEqual(whole);
   expect(new Set(paged).size).toBe(paged.length);
 });
 
@@ -176,7 +175,73 @@ it('rejects a broken cursor and a missing token', async () => {
     })
     .set(bearer(viewer))
     .expect(400);
+  await api(app)
+    .get('/api/feed')
+    .query({
+      cursor: Buffer.from(
+        JSON.stringify({
+          tier: 0,
+          createdAt: 'not-a-date',
+          id: posts.own.id,
+          since: 'also-not-a-date',
+        }),
+      ).toString('base64url'),
+    })
+    .set(bearer(viewer))
+    .expect(400);
+  await api(app)
+    .get('/api/feed')
+    .query({ limit: 51 })
+    .set(bearer(viewer))
+    .expect(400);
   await api(app).get('/api/feed').expect(401);
+});
+
+it('freezes the people you follow at the moment the feed was opened', async () => {
+  const reader = await registerUser(app, 'Frozen reader');
+  await api(app)
+    .put(`/api/users/${followed.id}/follow`)
+    .set(bearer(reader))
+    .expect(200);
+  const firstPage = await feedPage({ limit: 1 }, reader);
+  await api(app)
+    .put(`/api/users/${stranger.id}/follow`)
+    .set(bearer(reader))
+    .expect(200);
+
+  const items = [...firstPage.items];
+  let cursor = firstPage.nextCursor;
+  while (cursor) {
+    const page = await feedPage({ limit: 50, cursor }, reader);
+    items.push(...page.items);
+    cursor = page.nextCursor;
+    if (items.some(({ id }) => id === posts.strangerOld.id)) break;
+  }
+  const strangerPosts = items.filter(
+    ({ id }) => id === posts.strangerNew.id || id === posts.strangerOld.id,
+  );
+
+  expect(strangerPosts.map(({ fromFollowing }) => fromFollowing)).toEqual([
+    false,
+    false,
+  ]);
+});
+
+it('reports likedByMe per viewer in the feed', async () => {
+  await api(app)
+    .put(`/api/posts/${posts.followedOld.id}/like`)
+    .set(bearer(viewer))
+    .expect(200);
+
+  const seenByViewer = (await feedPage({ limit: 50 })).items.find(
+    ({ id }) => id === posts.followedOld.id,
+  );
+  const seenByStranger = (await feedPage({ limit: 50 }, stranger)).items.find(
+    ({ id }) => id === posts.followedOld.id,
+  );
+
+  expect(seenByViewer).toMatchObject({ likedByMe: true, likeCount: 1 });
+  expect(seenByStranger).toMatchObject({ likedByMe: false, likeCount: 1 });
 });
 
 describe('editing posts', () => {
