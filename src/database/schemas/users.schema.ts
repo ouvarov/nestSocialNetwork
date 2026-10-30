@@ -1,6 +1,7 @@
-import { sql } from 'drizzle-orm';
+import { isNotNull, sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
+  index,
   pgTable,
   uuid,
   varchar,
@@ -30,6 +31,9 @@ const Users = pgTable(
   },
   (table) => [
     uniqueIndex('users_email_lower_uq').on(sql`lower(${table.email})`),
+    index('users_avatar_upload_id_idx')
+      .on(table.avatar_upload_id)
+      .where(isNotNull(table.avatar_upload_id)),
   ],
 );
 

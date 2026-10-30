@@ -52,13 +52,18 @@ export class UploadService {
       file.buffer,
       imageType.contentType,
     );
-    const id = await this.uploadDatabaseService.create({
-      ownerId: userId,
-      storageKey,
-      contentType: imageType.contentType,
-      sizeBytes: file.buffer.length,
-      ...dimensions,
-    });
+    const id = await this.uploadDatabaseService
+      .create({
+        ownerId: userId,
+        storageKey,
+        contentType: imageType.contentType,
+        sizeBytes: file.buffer.length,
+        ...dimensions,
+      })
+      .catch(async (error: unknown) => {
+        await this.storageService.remove(storageKey).catch(() => undefined);
+        throw error;
+      });
 
     return { id, url, ...dimensions };
   }

@@ -138,6 +138,7 @@ export class UserDatabaseOrmService {
           user_name: userName,
           description,
           avatar_upload_id: avatarUploadId,
+          image_url: avatarUploadId === undefined ? undefined : null,
         })
         .where(eq(Users.user_id, userId));
 

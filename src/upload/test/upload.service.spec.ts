@@ -33,17 +33,27 @@ const HTML = Buffer.from('<html><script>alert(1)</script></html>');
 const asUpload = (buffer: Buffer, mimetype = 'image/png') =>
   ({ buffer, mimetype, originalname: 'photo.png' }) as Express.Multer.File;
 
-const createUploadService = (existingUserIds = ['user-1']) => {
+const createUploadService = (
+  existingUserIds = ['user-1'],
+  isDatabaseDown = false,
+) => {
   const saved: { path: string; contentType: string }[] = [];
+  const removed: string[] = [];
   const recorded: unknown[] = [];
   const storage = {
     save: (path: string, _data: Buffer, contentType: string) => {
       saved.push({ path, contentType });
       return Promise.resolve(`https://cdn.test/${path}`);
     },
+    remove: (path: string) => {
+      removed.push(path);
+      return Promise.resolve();
+    },
   };
   const uploads = {
     create: (upload: unknown) => {
+      if (isDatabaseDown) return Promise.reject(new Error('connection lost'));
+
       recorded.push(upload);
       return Promise.resolve('upload-1');
     },
@@ -59,6 +69,7 @@ const createUploadService = (existingUserIds = ['user-1']) => {
       users as unknown as UserService,
     ),
     saved,
+    removed,
     recorded,
   };
 };
@@ -147,6 +158,18 @@ describe('UploadService', () => {
     ).rejects.toThrow(UnsupportedMediaTypeException);
     expect(saved).toHaveLength(0);
     expect(recorded).toHaveLength(0);
+  });
+
+  it('removes the stored file when its upload row cannot be written', async () => {
+    const { uploadService, saved, removed } = createUploadService(
+      ['user-1'],
+      true,
+    );
+
+    await expect(
+      uploadService.uploadImage('user-1', asUpload(PNG_3X2)),
+    ).rejects.toThrow('connection lost');
+    expect(removed).toEqual([saved[0].path]);
   });
 
   it('rejects an upload from a deleted account', async () => {

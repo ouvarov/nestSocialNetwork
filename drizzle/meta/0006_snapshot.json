@@ -1,5 +1,5 @@
 {
-  "id": "28a1cb54-2a66-460f-92fc-3546856cefad",
+  "id": "a18ce501-2b19-43c6-9b8e-3c145be150a9",
   "prevId": "74a0f95d-22b6-42ea-9037-8b470a1d9cc5",
   "version": "7",
   "dialect": "postgresql",
@@ -542,6 +542,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "posts_image_upload_id_idx": {
+          "name": "posts_image_upload_id_idx",
+          "columns": [
+            {
+              "expression": "image_upload_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"posts\".\"image_upload_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -853,6 +869,22 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_avatar_upload_id_idx": {
+          "name": "users_avatar_upload_id_idx",
+          "columns": [
+            {
+              "expression": "avatar_upload_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"users\".\"avatar_upload_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

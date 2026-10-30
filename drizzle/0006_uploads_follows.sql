@@ -29,6 +29,8 @@ CREATE INDEX "follows_follower_created_idx" ON "follows" USING btree ("follower_
 CREATE INDEX "uploads_owner_id_idx" ON "uploads" USING btree ("owner_id");--> statement-breakpoint
 ALTER TABLE "posts" ADD CONSTRAINT "posts_image_upload_id_uploads_upload_id_fk" FOREIGN KEY ("image_upload_id") REFERENCES "public"."uploads"("upload_id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "users" ADD CONSTRAINT "users_avatar_upload_id_uploads_upload_id_fk" FOREIGN KEY ("avatar_upload_id") REFERENCES "public"."uploads"("upload_id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "posts_image_upload_id_idx" ON "posts" USING btree ("image_upload_id") WHERE "posts"."image_upload_id" is not null;--> statement-breakpoint
+CREATE INDEX "users_avatar_upload_id_idx" ON "users" USING btree ("avatar_upload_id") WHERE "users"."avatar_upload_id" is not null;--> statement-breakpoint
 INSERT INTO "uploads" ("owner_id", "storage_key", "content_type")
 SELECT DISTINCT ON ("keys"."storage_key") "keys"."owner_id", "keys"."storage_key",
 	CASE lower(substring("keys"."storage_key" from '\.([A-Za-z0-9]+)$'))

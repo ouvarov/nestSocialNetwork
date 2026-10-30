@@ -36,7 +36,7 @@ import type {
 const PROFILE_TTL_SECONDS = 60;
 const USERS_PAGE_SIZE = 20;
 
-const profileKey = (id: string) => `user:profile:v2:${id}`;
+const profileKey = (id: string) => `user:profile:v2:${id.toLowerCase()}`;
 
 @Injectable()
 export class UserService {
@@ -95,39 +95,43 @@ export class UserService {
 
   async updateProfile(
     userId: string,
-    { userName, description, avatarUploadId }: UpdateProfileDto,
+    patch: UpdateProfileDto,
   ): Promise<UserResponseDto> {
-    const isEmptyPatch =
-      userName === undefined &&
-      description === undefined &&
-      avatarUploadId === undefined;
+    const isEmptyPatch = Object.values(patch).every(
+      (value) => value === undefined,
+    );
 
-    if (!isEmptyPatch) {
-      await this.assertOwnUpload(userId, avatarUploadId);
-
-      const update = await this.userDatabaseService.updateProfile(userId, {
-        userName,
-        description,
-        avatarUploadId,
-      });
-      if (!update) throw new NotFoundException('User not found');
-
-      await this.invalidateProfiles([userId]);
-
-      if (
-        avatarUploadId !== undefined &&
-        update.previousAvatarUploadId !== avatarUploadId
-      ) {
-        await this.uploadCleanupService.removeIfUnused(
-          update.previousAvatarUploadId,
-        );
-      }
-    }
+    if (!isEmptyPatch) await this.writeProfile(userId, patch);
 
     const user = await this.findUser(userId);
     if (!user) throw new NotFoundException('User not found');
 
     return user;
+  }
+
+  private async writeProfile(
+    userId: string,
+    { userName, description, avatarUploadId }: UpdateProfileDto,
+  ): Promise<void> {
+    await this.assertOwnUpload(userId, avatarUploadId);
+
+    const update = await this.userDatabaseService.updateProfile(userId, {
+      userName,
+      description,
+      avatarUploadId,
+    });
+    if (!update) throw new NotFoundException('User not found');
+
+    await this.invalidateProfiles([userId]);
+
+    const isAvatarReplaced =
+      avatarUploadId !== undefined &&
+      update.previousAvatarUploadId !== avatarUploadId;
+    if (isAvatarReplaced) {
+      await this.uploadCleanupService.removeIfUnused(
+        update.previousAvatarUploadId,
+      );
+    }
   }
 
   async invalidateProfiles(ids: string[]): Promise<void> {

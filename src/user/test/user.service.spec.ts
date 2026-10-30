@@ -167,6 +167,16 @@ describe('UserService.findProfile', () => {
     expect(databaseReads()).toBe(1);
   });
 
+  it('drops the cached profile whatever the case of the id', async () => {
+    const { userService, databaseReads } = createUserService([ADA]);
+    await userService.findProfile(ADA_ID, ADA_ID);
+
+    await userService.invalidateProfiles([ADA_ID.toUpperCase()]);
+    await userService.findProfile(ADA_ID, ADA_ID);
+
+    expect(databaseReads()).toBe(2);
+  });
+
   it('does not cache a missing user', async () => {
     const { userService, databaseReads } = createUserService([]);
 

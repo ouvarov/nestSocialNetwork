@@ -1,3 +1,4 @@
+import { isNotNull } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 import { Uploads } from './uploads.schema';
 import { Users } from './users.schema';
@@ -21,6 +22,9 @@ const Posts = pgTable(
   },
   (table) => [
     index('posts_owner_created_idx').on(table.owner_id, table.created),
+    index('posts_image_upload_id_idx')
+      .on(table.image_upload_id)
+      .where(isNotNull(table.image_upload_id)),
   ],
 );
 
