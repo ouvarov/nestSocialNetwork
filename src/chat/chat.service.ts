@@ -9,13 +9,17 @@ import { decodeCursor, toPage } from '@/common/pagination/cursor';
 import type { PageQueryDto } from '@/common/pagination/page-query.dto';
 import {
   ChatDatabaseService,
+  type ChatPeer,
   type MessageRow,
 } from '@/database/chat-database.service';
+import { toImageUrl } from '@/storage/image-url';
+import { StorageService } from '@/storage/storage.service';
 import { UserService } from '@/user/user.service';
 
 import type {
   ChatDto,
   ChatMessageDto,
+  ChatPeerDto,
   ChatSummaryDto,
   MessagePageDto,
 } from './dto/chat-response.dto';
@@ -35,6 +39,7 @@ export class ChatService {
   constructor(
     private readonly chatDatabaseService: ChatDatabaseService,
     private readonly userService: UserService,
+    private readonly storageService: StorageService,
   ) {}
 
   async create(userId: string, peerId: string): Promise<string> {
@@ -54,15 +59,31 @@ export class ChatService {
     );
   }
 
-  findAll(userId: string): Promise<ChatSummaryDto[]> {
-    return this.chatDatabaseService.getChatsOfUser(userId);
+  async findAll(userId: string): Promise<ChatSummaryDto[]> {
+    const chats = await this.chatDatabaseService.getChatsOfUser(userId);
+
+    return chats.map((chat) => ({ ...chat, peer: this.toPeer(chat.peer) }));
   }
 
   async findOne(userId: string, chatId: string): Promise<ChatDto> {
     const chat = await this.chatDatabaseService.findChatHeader(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
 
-    return { ...chat, canSend: chat.peer !== null };
+    return {
+      chatId: chat.chatId,
+      peer: this.toPeer(chat.peer),
+      canSend: chat.peer !== null,
+    };
+  }
+
+  private toPeer(peer: ChatPeer | null): ChatPeerDto | null {
+    if (!peer) return null;
+
+    return {
+      id: peer.id,
+      userName: peer.userName,
+      imageUrl: toImageUrl(this.storageService, peer),
+    };
   }
 
   async findMessages(

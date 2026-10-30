@@ -3,10 +3,10 @@ import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { MaxBytes } from '@/common/validation/max-bytes';
 import { NormalizedEmail, TrimmedString } from '@/common/validation/transforms';
+import { MAX_USER_NAME_LENGTH } from '@/user/user-limits';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_BYTES = 72;
-const MAX_USER_NAME_LENGTH = 50;
 
 export class CreateAuthDto {
   @ApiProperty({ example: 'ada@example.com' })

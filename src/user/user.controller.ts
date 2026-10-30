@@ -7,11 +7,13 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Query,
   Res,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -33,8 +35,15 @@ import { PageQueryDto } from '@/common/pagination/page-query.dto';
 import type { Env } from '@/config/env.schema';
 
 import { DeleteAccountDto } from './dto/delete-account.dto';
-import { UserPageDto, UserResponseDto } from './dto/user-response.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import {
+  ProfileResponseDto,
+  UserPageDto,
+  UserResponseDto,
+} from './dto/user-response.dto';
 import { UserService } from './user.service';
+
+const PROFILE_UPDATE_RATE_LIMIT = { default: { ttl: 60_000, limit: 10 } };
 
 @Controller('users')
 @ApiTags('Users')
@@ -52,15 +61,35 @@ export class UserController {
 
   @Get()
   @ApiOkResponse({ type: UserPageDto })
-  findAll(@Query() pageQuery: PageQueryDto): Promise<UserPageDto> {
-    return this.userService.findAll(pageQuery);
+  findAll(
+    @CurrentUser() user: AuthUser,
+    @Query() pageQuery: PageQueryDto,
+  ): Promise<UserPageDto> {
+    return this.userService.findAll(user.id, pageQuery);
+  }
+
+  @Patch('me')
+  @Throttle(PROFILE_UPDATE_RATE_LIMIT)
+  @ApiOkResponse({ type: UserResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid field, or an avatar upload that is not yours',
+  })
+  @ApiTooManyRequestsResponse()
+  updateMe(
+    @CurrentUser() user: AuthUser,
+    @Body() updateProfileDto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    return this.userService.updateProfile(user.id, updateProfileDto);
   }
 
   @Get(':id')
-  @ApiOkResponse({ type: UserResponseDto })
+  @ApiOkResponse({ type: ProfileResponseDto })
   @ApiNotFoundResponse({ description: 'User not found' })
-  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
-    return this.userService.findProfile(id);
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProfileResponseDto> {
+    return this.userService.findProfile(id, user.id);
   }
 
   @Delete('me')

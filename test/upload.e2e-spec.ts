@@ -39,9 +39,14 @@ const upload = (as: TestUser, data: Buffer, filename = 'image.png') =>
 
 it('stores an image under the user and serves it back', async () => {
   const response = await upload(user, PNG).expect(201);
-  const { url } = response.body as UploadResponseDto;
+  const { url, ...stored } = response.body as UploadResponseDto;
 
   expect(url).toMatch(new RegExp(`/uploads/users/${user.id}/[\\w-]+\\.png$`));
+  expect(stored).toEqual({
+    id: expect.any(String) as string,
+    width: 1,
+    height: 1,
+  });
 
   const served = await api(app)
     .get(new URL(url).pathname)
@@ -72,21 +77,58 @@ it('needs a signed-in user', async () => {
 });
 
 it("accepts the uploaded image in a post, but not in another user's post", async () => {
-  const { url } = (await upload(user, PNG).expect(201))
+  const { id, url } = (await upload(user, PNG).expect(201))
     .body as UploadResponseDto;
 
   const post = (
     await api(app)
       .post('/api/posts')
       .set(bearer(user))
-      .send({ text: 'With a picture', imageUrl: url })
+      .send({ text: 'With a picture', imageUploadId: id })
       .expect(201)
   ).body as PostResponseDto;
-  expect(post.imageUrl).toBe(url);
+  expect(post).toMatchObject({ imageUrl: url, imageWidth: 1, imageHeight: 1 });
 
   await api(app)
     .post('/api/posts')
     .set(bearer(other))
-    .send({ text: 'Borrowed picture', imageUrl: url })
+    .send({ text: 'Borrowed picture', imageUploadId: id })
     .expect(400);
+});
+
+it('removes the image file when its post is deleted', async () => {
+  const { id, url } = (await upload(user, PNG).expect(201))
+    .body as UploadResponseDto;
+  const post = (
+    await api(app)
+      .post('/api/posts')
+      .set(bearer(user))
+      .send({ text: 'Short-lived picture', imageUploadId: id })
+      .expect(201)
+  ).body as PostResponseDto;
+
+  await api(app).delete(`/api/posts/${post.id}`).set(bearer(user)).expect(204);
+
+  await api(app).get(new URL(url).pathname).expect(404);
+});
+
+it('keeps an image that is still the avatar when its post is deleted', async () => {
+  const { id, url } = (await upload(user, PNG).expect(201))
+    .body as UploadResponseDto;
+  await api(app)
+    .patch('/api/users/me')
+    .set(bearer(user))
+    .send({ avatarUploadId: id })
+    .expect(200);
+  const post = (
+    await api(app)
+      .post('/api/posts')
+      .set(bearer(user))
+      .send({ text: 'Avatar and post', imageUploadId: id })
+      .expect(201)
+  ).body as PostResponseDto;
+
+  await api(app).delete(`/api/posts/${post.id}`).set(bearer(user)).expect(204);
+
+  await api(app).get(new URL(url).pathname).expect(200);
 });

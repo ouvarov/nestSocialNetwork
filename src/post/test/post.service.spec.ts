@@ -6,7 +6,9 @@ import type {
   PostDatabaseOrmService,
   PostRow,
 } from '@/database/post-database.service';
+import type { UploadDatabaseService } from '@/database/upload-database.service';
 import type { StorageService } from '@/storage/storage.service';
+import type { UploadCleanupService } from '@/storage/upload-cleanup.service';
 
 import { PostService } from '../post.service';
 
@@ -17,24 +19,45 @@ const CDN = 'https://cdn.test';
 type StoredPost = {
   postId: string;
   ownerId: string;
-  imageUrl: string | null;
+  imageUploadId: string | null;
   text: string;
   created: Date;
 };
 
+type StoredUpload = {
+  ownerId: string;
+  storageKey: string;
+  width: number;
+  height: number;
+};
+
 const createPostStore = () => {
   const posts = new Map<string, StoredPost>();
+  const uploads = new Map<string, StoredUpload>();
   const likes = new Set<string>();
   let clock = Date.parse('2026-10-01T12:00:00Z');
 
   const likeKey = (postId: string, userId: string) => `${postId}:${userId}`;
-  const toRow = (post: StoredPost, viewerId: string): PostRow => ({
-    ...post,
-    createdCursor: post.created.toISOString(),
-    likeCount: [...likes].filter((key) => key.startsWith(`${post.postId}:`))
-      .length,
-    likedByMe: likes.has(likeKey(post.postId, viewerId)),
-  });
+  const toRow = (post: StoredPost, viewerId: string): PostRow => {
+    const upload = post.imageUploadId
+      ? uploads.get(post.imageUploadId)
+      : undefined;
+
+    return {
+      postId: post.postId,
+      ownerId: post.ownerId,
+      imageKey: upload?.storageKey ?? null,
+      legacyImageUrl: null,
+      imageWidth: upload?.width ?? null,
+      imageHeight: upload?.height ?? null,
+      text: post.text,
+      created: post.created,
+      createdCursor: post.created.toISOString(),
+      likeCount: [...likes].filter((key) => key.startsWith(`${post.postId}:`))
+        .length,
+      likedByMe: likes.has(likeKey(post.postId, viewerId)),
+    };
+  };
   const isBefore = (post: StoredPost, cursor: Cursor) =>
     post.created.toISOString() < cursor.createdAt ||
     (post.created.toISOString() === cursor.createdAt &&
@@ -43,11 +66,11 @@ const createPostStore = () => {
   const store = {
     createPost: ({
       userId,
-      imageUrl,
+      imageUploadId,
       text,
     }: {
       userId: string;
-      imageUrl?: string;
+      imageUploadId?: string;
       text: string;
     }) => {
       clock += 1000;
@@ -55,7 +78,7 @@ const createPostStore = () => {
       posts.set(postId, {
         postId,
         ownerId: userId,
-        imageUrl: imageUrl ?? null,
+        imageUploadId: imageUploadId ?? null,
         text,
         created: new Date(clock),
       });
@@ -93,26 +116,53 @@ const createPostStore = () => {
       return Promise.resolve();
     },
     deletePost: (postId: string, ownerId: string) => {
-      const isOwner = posts.get(postId)?.ownerId === ownerId;
-      if (isOwner) posts.delete(postId);
-      return Promise.resolve(isOwner);
+      const post = posts.get(postId);
+      if (post?.ownerId !== ownerId) return Promise.resolve(null);
+
+      posts.delete(postId);
+      return Promise.resolve({ imageUploadId: post.imageUploadId });
     },
   };
 
-  return { store, posts };
+  const uploadStore = {
+    isOwnedBy: (uploadId: string, ownerId: string) =>
+      Promise.resolve(uploads.get(uploadId)?.ownerId === ownerId),
+  };
+
+  const addUpload = (ownerId: string) => {
+    const uploadId = randomUUID();
+    uploads.set(uploadId, {
+      ownerId,
+      storageKey: `users/${ownerId}/${uploadId}.png`,
+      width: 1200,
+      height: 800,
+    });
+    return uploadId;
+  };
+
+  return { store, uploadStore, posts, addUpload };
 };
 
 const createPostService = () => {
-  const { store, posts } = createPostStore();
+  const { store, uploadStore, posts, addUpload } = createPostStore();
+  const removedUploadIds: (string | null)[] = [];
+  const cleanup = {
+    removeIfUnused: (uploadId: string | null) => {
+      removedUploadIds.push(uploadId);
+      return Promise.resolve();
+    },
+  };
   const storage = {
     publicUrl: (path: string) => `${CDN}/${path}`,
   };
   const postService = new PostService(
     store as unknown as PostDatabaseOrmService,
+    uploadStore as unknown as UploadDatabaseService,
+    cleanup as unknown as UploadCleanupService,
     storage as unknown as StorageService,
   );
 
-  return { postService, posts };
+  return { postService, posts, addUpload, removedUploadIds };
 };
 
 describe('PostService', () => {
@@ -125,34 +175,46 @@ describe('PostService', () => {
       ownerId: ADA,
       text: 'hello',
       imageUrl: null,
+      imageWidth: null,
+      imageHeight: null,
       likeCount: 0,
       likedByMe: false,
     });
   });
 
-  describe('image url', () => {
-    it('accepts an image the author uploaded', async () => {
-      const { postService } = createPostService();
-      const imageUrl = `${CDN}/users/${ADA}/photo.png`;
+  describe('image', () => {
+    it('shows an image the author uploaded with its URL and size', async () => {
+      const { postService, addUpload } = createPostService();
+      const imageUploadId = addUpload(ADA);
 
-      const post = await postService.create(ADA, { text: 'hi', imageUrl });
+      const post = await postService.create(ADA, {
+        text: 'hi',
+        imageUploadId,
+      });
 
-      expect(post.imageUrl).toBe(imageUrl);
+      expect(post).toMatchObject({
+        imageUrl: `${CDN}/users/${ADA}/${imageUploadId}.png`,
+        imageWidth: 1200,
+        imageHeight: 800,
+      });
     });
 
     it.each([
-      ['an external url', 'https://tracker.example.com/pixel.png'],
-      ['another user image', `${CDN}/users/${LINUS}/photo.png`],
       [
-        'a path escaping the author folder',
-        `${CDN}/users/${ADA}/../${LINUS}/photo.png`,
+        'another user upload',
+        (addUpload: (id: string) => string) => addUpload(LINUS),
       ],
-    ])('rejects %s', async (_case, imageUrl) => {
-      const { postService } = createPostService();
+      ['an unknown upload', () => randomUUID()],
+    ])('rejects %s', async (_case, pickUpload) => {
+      const { postService, addUpload, posts } = createPostService();
 
       await expect(
-        postService.create(ADA, { text: 'hi', imageUrl }),
+        postService.create(ADA, {
+          text: 'hi',
+          imageUploadId: pickUpload(addUpload),
+        }),
       ).rejects.toBeInstanceOf(BadRequestException);
+      expect(posts.size).toBe(0);
     });
   });
 
@@ -200,22 +262,29 @@ describe('PostService', () => {
 
   describe('remove', () => {
     it("answers 404 and keeps the post when it is someone else's", async () => {
-      const { postService, posts } = createPostService();
+      const { postService, posts, removedUploadIds } = createPostService();
       const { id } = await postService.create(ADA, { text: 'hello' });
 
       await expect(postService.remove(LINUS, id)).rejects.toThrow(
         NotFoundException,
       );
       expect(posts.has(id)).toBe(true);
+      expect(removedUploadIds).toEqual([]);
     });
 
-    it('deletes the own post', async () => {
-      const { postService, posts } = createPostService();
-      const { id } = await postService.create(ADA, { text: 'hello' });
+    it('deletes the own post and hands its image to the cleanup', async () => {
+      const { postService, posts, addUpload, removedUploadIds } =
+        createPostService();
+      const imageUploadId = addUpload(ADA);
+      const { id } = await postService.create(ADA, {
+        text: 'hello',
+        imageUploadId,
+      });
 
       await postService.remove(ADA, id);
 
       expect(posts.has(id)).toBe(false);
+      expect(removedUploadIds).toEqual([imageUploadId]);
     });
   });
 

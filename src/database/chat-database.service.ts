@@ -8,9 +8,11 @@ import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
 import { Chats } from '@/database/schemas/chats.schema';
 import { Messages } from '@/database/schemas/messages.schema';
+import { Uploads } from '@/database/schemas/uploads.schema';
 import { Users } from '@/database/schemas/users.schema';
+import type { StoredImage } from '@/storage/image-url';
 
-type ChatPeer = { id: string; userName: string; imageUrl: string | null };
+type ChatPeer = StoredImage & { id: string; userName: string };
 
 type ChatSummary = {
   chatId: string;
@@ -38,8 +40,25 @@ const lastMessageAt =
 const peerColumns = {
   id: Users.user_id,
   userName: Users.user_name,
-  imageUrl: Users.image_url,
+  imageKey: Uploads.storage_key,
+  legacyImageUrl: Users.image_url,
 };
+
+type PeerColumns =
+  | {
+      [Key in keyof ChatPeer]: ChatPeer[Key] | null;
+    }
+  | null;
+
+const toChatPeer = (peer: PeerColumns): ChatPeer | null =>
+  peer?.id && peer.userName !== null
+    ? {
+        id: peer.id,
+        userName: peer.userName,
+        imageKey: peer.imageKey,
+        legacyImageUrl: peer.legacyImageUrl,
+      }
+    : null;
 
 const toPairKey = (userId: string, peerId: string) =>
   [userId, peerId]
@@ -99,8 +118,8 @@ export class ChatDatabaseService {
     });
   }
 
-  getChatsOfUser(userId: string): Promise<ChatSummary[]> {
-    return this.db
+  async getChatsOfUser(userId: string): Promise<ChatSummary[]> {
+    const chats = await this.db
       .select({ chatId: Chats.chat_id, peer: peerColumns, lastMessageAt })
       .from(ChatMembers)
       .innerJoin(Chats, eq(Chats.chat_id, ChatMembers.chat_id))
@@ -112,6 +131,7 @@ export class ChatDatabaseService {
         ),
       )
       .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
+      .leftJoin(Uploads, eq(Uploads.upload_id, Users.avatar_upload_id))
       .where(
         and(
           eq(ChatMembers.user_id, userId),
@@ -125,6 +145,8 @@ export class ChatDatabaseService {
         desc(sql`coalesce(${lastMessageAt}, ${Chats.created_at})`),
         desc(Chats.chat_id),
       );
+
+    return chats.map((chat) => ({ ...chat, peer: toChatPeer(chat.peer) }));
   }
 
   async findChatHeader(
@@ -142,11 +164,12 @@ export class ChatDatabaseService {
         ),
       )
       .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
+      .leftJoin(Uploads, eq(Uploads.upload_id, Users.avatar_upload_id))
       .where(
         and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
       );
 
-    return chat ?? null;
+    return chat ? { chatId: chat.chatId, peer: toChatPeer(chat.peer) } : null;
   }
 
   findMessages({

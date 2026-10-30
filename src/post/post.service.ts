@@ -11,8 +11,10 @@ import {
   type PostRow,
 } from '@/database/post-database.service';
 import { getPostgresErrorCode } from '@/database/postgres-error';
+import { UploadDatabaseService } from '@/database/upload-database.service';
+import { toImageUrl } from '@/storage/image-url';
 import { StorageService } from '@/storage/storage.service';
-import { userImagesDir } from '@/storage/user-images';
+import { UploadCleanupService } from '@/storage/upload-cleanup.service';
 
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
@@ -20,42 +22,31 @@ import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
 const POSTS_PAGE_SIZE = 10;
 const FOREIGN_KEY_VIOLATION = '23503';
 
-const toPostResponse = ({
-  postId,
-  ownerId,
-  imageUrl,
-  text,
-  created,
-  likeCount,
-  likedByMe,
-}: PostRow): PostResponseDto => ({
-  id: postId,
-  ownerId,
-  imageUrl,
-  text,
-  created,
-  likeCount,
-  likedByMe,
-});
-
 @Injectable()
 export class PostService {
   constructor(
     private readonly postDatabaseService: PostDatabaseOrmService,
+    private readonly uploadDatabaseService: UploadDatabaseService,
+    private readonly uploadCleanupService: UploadCleanupService,
     private readonly storageService: StorageService,
   ) {}
 
   async create(
     userId: string,
-    { text, imageUrl }: CreatePostDto,
+    { text, imageUploadId }: CreatePostDto,
   ): Promise<PostResponseDto> {
-    if (imageUrl && !this.isOwnImage(userId, imageUrl)) {
-      throw new BadRequestException('imageUrl must be an image you uploaded');
+    if (
+      imageUploadId &&
+      !(await this.uploadDatabaseService.isOwnedBy(imageUploadId, userId))
+    ) {
+      throw new BadRequestException(
+        'imageUploadId must be an image you uploaded',
+      );
     }
 
     const postId = await this.postDatabaseService.createPost({
       userId,
-      imageUrl,
+      imageUploadId,
       text,
     });
 
@@ -74,10 +65,12 @@ export class PostService {
       cursor: cursor ? decodeCursor(cursor) : undefined,
     });
 
-    return toPage(rows, limit, toPostResponse, (row) => ({
-      createdAt: row.createdCursor,
-      id: row.postId,
-    }));
+    return toPage(
+      rows,
+      limit,
+      (row) => this.toPostResponse(row),
+      (row) => ({ createdAt: row.createdCursor, id: row.postId }),
+    );
   }
 
   async like(userId: string, postId: string): Promise<PostResponseDto> {
@@ -100,9 +93,11 @@ export class PostService {
   }
 
   async remove(userId: string, postId: string): Promise<void> {
-    const isDeleted = await this.postDatabaseService.deletePost(postId, userId);
+    const deleted = await this.postDatabaseService.deletePost(postId, userId);
 
-    if (!isDeleted) throw new NotFoundException('Post not found');
+    if (!deleted) throw new NotFoundException('Post not found');
+
+    await this.uploadCleanupService.removeIfUnused(deleted.imageUploadId);
   }
 
   private async getPost(
@@ -113,16 +108,20 @@ export class PostService {
 
     if (!post) throw new NotFoundException('Post not found');
 
-    return toPostResponse(post);
+    return this.toPostResponse(post);
   }
 
-  private isOwnImage(userId: string, imageUrl: string): boolean {
-    const ownImagesPrefix = this.storageService.publicUrl(
-      userImagesDir(userId),
-    );
-
-    return URL.canParse(imageUrl)
-      ? new URL(imageUrl).href.startsWith(ownImagesPrefix)
-      : false;
+  private toPostResponse(post: PostRow): PostResponseDto {
+    return {
+      id: post.postId,
+      ownerId: post.ownerId,
+      imageUrl: toImageUrl(this.storageService, post),
+      imageWidth: post.imageWidth,
+      imageHeight: post.imageHeight,
+      text: post.text,
+      created: post.created,
+      likeCount: post.likeCount,
+      likedByMe: post.likedByMe,
+    };
   }
 }

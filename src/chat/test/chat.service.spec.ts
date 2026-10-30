@@ -9,6 +9,7 @@ import type {
   ChatDatabaseService,
   ChatPeer,
 } from '@/database/chat-database.service';
+import type { StorageService } from '@/storage/storage.service';
 import type { UserService } from '@/user/user.service';
 
 import { ChatService } from '../chat.service';
@@ -20,8 +21,13 @@ const GRACE = '00000000-0000-4000-8000-00000000000c';
 const peerOf = (userId: string): ChatPeer => ({
   id: userId,
   userName: userId,
-  imageUrl: null,
+  imageKey: `users/${userId}/avatar.webp`,
+  legacyImageUrl: null,
 });
+
+const storage = {
+  publicUrl: (path: string) => `https://cdn.test/${path}`,
+} as unknown as StorageService;
 
 const createChatStore = () => {
   const chats = new Map<string, { pairKey: string; members: Set<string> }>();
@@ -68,6 +74,7 @@ const createChatService = (existingUserIds = [ADA, LINUS, GRACE]) => {
   const chatService = new ChatService(
     store as unknown as ChatDatabaseService,
     userService as unknown as UserService,
+    storage,
   );
   const deleteAccount = (chatId: string, userId: string) =>
     chats.get(chatId)?.members.delete(userId);
@@ -119,13 +126,17 @@ describe('ChatService', () => {
   });
 
   describe('findOne', () => {
-    it('shows the other person and allows sending', async () => {
+    it('shows the other person with an avatar URL and allows sending', async () => {
       const { chatService } = createChatService();
       const chatId = await chatService.create(ADA, LINUS);
 
       await expect(chatService.findOne(ADA, chatId)).resolves.toEqual({
         chatId,
-        peer: peerOf(LINUS),
+        peer: {
+          id: LINUS,
+          userName: LINUS,
+          imageUrl: `https://cdn.test/users/${LINUS}/avatar.webp`,
+        },
         canSend: true,
       });
     });

@@ -6,7 +6,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { plainToClass } from 'class-transformer';
 import { randomUUID } from 'node:crypto';
 
 import type { Env } from '@/config/env.schema';
@@ -17,8 +16,7 @@ import { getPostgresErrorCode } from '@/database/postgres-error';
 import { RefreshTokenDatabaseService } from '@/database/refresh-token-database.service';
 import { UserSocketsService } from '@/realtime/user-sockets.service';
 import type { RefreshToken } from '@/database/schemas/refreshTokens.schema';
-import type { User } from '@/database/schemas/users.schema';
-import { UserResponseDto } from '@/user/dto/user-response.dto';
+import type { UserResponseDto } from '@/user/dto/user-response.dto';
 import { UserService } from '@/user/user.service';
 
 import { REFRESH_TOKEN_TTL_MS } from './refresh-cookie';
@@ -39,9 +37,6 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync(
   'timing-safe-comparison-for-unknown-emails',
   PASSWORD_HASH_ROUNDS,
 );
-
-const toUserResponse = (user: User) =>
-  plainToClass(UserResponseDto, user, { excludeExtraneousValues: true });
 
 @Injectable()
 export class AuthService {
@@ -74,7 +69,7 @@ export class AuthService {
         password: passwordHash,
       });
 
-      return await this.startSession(user);
+      return await this.startSession(user.user_id);
     } catch (error) {
       if (getPostgresErrorCode(error) === UNIQUE_VIOLATION) {
         throw new ConflictException('Email is already registered');
@@ -94,7 +89,7 @@ export class AuthService {
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
-    return this.startSession(user);
+    return this.startSession(user.user_id);
   }
 
   async refresh(refreshToken: string | undefined): Promise<AuthSession> {
@@ -109,12 +104,12 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    const user = await this.userService.findOneById(storedToken.user_id);
+    const user = await this.userService.findUser(storedToken.user_id);
 
     if (!user) throw new UnauthorizedException();
 
     const nextToken = await this.signRefreshToken(
-      user.user_id,
+      user.id,
       storedToken.family_id,
     );
     const isRotated = await this.refreshTokenDatabaseService.rotate(
@@ -129,9 +124,9 @@ export class AuthService {
     }
 
     return {
-      accessToken: await this.signAccessToken(user.user_id),
+      accessToken: await this.signAccessToken(user.id),
       refreshToken: nextToken.token,
-      user: toUserResponse(user),
+      user,
     };
   }
 
@@ -146,11 +141,7 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    const user = await this.userService.findOneById(token.user_id);
-
-    if (!user) throw new UnauthorizedException();
-
-    return this.startSession(user, token.family_id);
+    return this.startSession(token.user_id, token.family_id);
   }
 
   private async isConcurrentRefresh({
@@ -184,16 +175,20 @@ export class AuthService {
   }
 
   private async startSession(
-    user: User,
+    userId: string,
     familyId: string = randomUUID(),
   ): Promise<AuthSession> {
-    const refreshToken = await this.signRefreshToken(user.user_id, familyId);
+    const user = await this.userService.findUser(userId);
+
+    if (!user) throw new UnauthorizedException();
+
+    const refreshToken = await this.signRefreshToken(userId, familyId);
     await this.refreshTokenDatabaseService.create(refreshToken.record);
 
     return {
-      accessToken: await this.signAccessToken(user.user_id),
+      accessToken: await this.signAccessToken(userId),
       refreshToken: refreshToken.token,
-      user: toUserResponse(user),
+      user,
     };
   }
 

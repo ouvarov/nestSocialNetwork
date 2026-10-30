@@ -40,6 +40,14 @@ class SupabaseStorageService extends StorageService {
       .publicUrl;
   }
 
+  async remove(path: string): Promise<void> {
+    const { error } = await this.client.storage
+      .from(this.bucket)
+      .remove([path]);
+
+    if (error) throw new Error(`Removing ${path} failed: ${error.message}`);
+  }
+
   async removeDirectory(path: string): Promise<void> {
     const storage = this.client.storage.from(this.bucket);
     const folder = path.replace(/\/$/, '');

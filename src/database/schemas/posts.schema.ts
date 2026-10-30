@@ -1,4 +1,6 @@
+import { isNotNull } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { Uploads } from './uploads.schema';
 import { Users } from './users.schema';
 
 const Posts = pgTable(
@@ -9,6 +11,10 @@ const Posts = pgTable(
       .notNull()
       .references(() => Users.user_id, { onDelete: 'cascade' }),
     image_url: text('image_url'),
+    image_upload_id: uuid('image_upload_id').references(
+      () => Uploads.upload_id,
+      { onDelete: 'set null' },
+    ),
     text: text('text').notNull(),
     created: timestamp('created', { withTimezone: true })
       .notNull()
@@ -16,6 +22,9 @@ const Posts = pgTable(
   },
   (table) => [
     index('posts_owner_created_idx').on(table.owner_id, table.created),
+    index('posts_image_upload_id_idx')
+      .on(table.image_upload_id)
+      .where(isNotNull(table.image_upload_id)),
   ],
 );
 
