@@ -66,6 +66,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://pulse:pulse@localhost:5432/pulse
+      E2E_DATABASE_URL: postgres://pulse:pulse@localhost:5432/pulse
       JWT_ACCESS_SECRET: ci-access-secret-that-is-long-enough-000
       REFRESH_TOKEN_SECRET: ci-refresh-secret-that-is-long-enough-00
     steps:

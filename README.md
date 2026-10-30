@@ -126,8 +126,21 @@ Nest 12 packages are ESM-only. The app stays CommonJS and loads them through `re
 
 ```bash
 npm test           # unit tests
-npm run test:e2e   # 74 e2e tests; needs DATABASE_URL and a migrated database
+npm run test:e2e   # e2e tests; needs E2E_DATABASE_URL pointing at a migrated, throwaway database
 ```
+
+The e2e suite never reads `DATABASE_URL` from `.env`, so it can't touch a real database by accident.
+
+Without Docker, an in-memory Postgres (PGlite) is enough:
+
+```bash
+npm run db:local                                             # terminal 1
+DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres npm run db:migrate
+E2E_DATABASE_URL=postgres://postgres@127.0.0.1:55432/postgres DATABASE_POOL_MAX=1 \
+  npm run test:e2e -- --runInBand                            # terminal 2
+```
+
+PGlite runs one query at a time, so the pool is limited to one connection there.
 
 - **Unit tests** (`src/**/*.spec.ts`) cover the logic, with the database mocked: token rotation and reuse, cursors, error mapping, env validation.
 - **E2E tests** (`test/*.e2e-spec.ts`) start the whole app the way `main.ts` does, against a real Postgres. They use Supertest and a Socket.IO client. Coverage:
@@ -233,6 +246,7 @@ First deploy:
 | `npm test` / `npm run test:e2e`  | Unit / e2e tests                     |
 | `npm run db:generate`            | Generate a migration from the schema |
 | `npm run db:migrate` / `db:seed` | Apply migrations / load demo data    |
+| `npm run db:local`               | In-memory Postgres for e2e (PGlite)  |
 | `npm run openapi:generate`       | Regenerate `openapi.json`            |
 
 ## License

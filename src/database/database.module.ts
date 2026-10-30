@@ -19,7 +19,10 @@ const SHUTDOWN_TIMEOUT_SECONDS = 5;
         const connectionString = configService.get('DATABASE_URL', {
           infer: true,
         });
-        return postgres(connectionString, { prepare: false });
+        return postgres(connectionString, {
+          prepare: false,
+          max: configService.get('DATABASE_POOL_MAX', { infer: true }),
+        });
       },
       inject: [ConfigService],
     },
