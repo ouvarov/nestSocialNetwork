@@ -368,6 +368,52 @@
         ]
       }
     },
+    "/api/feed": {
+      "get": {
+        "operationId": "PostController_findFeed",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Each list has its own default page size",
+            "schema": {
+              "maximum": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "nextCursor from the previous page",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Posts"
+        ]
+      }
+    },
     "/api/posts": {
       "post": {
         "operationId": "PostController_create",
@@ -533,6 +579,52 @@
       }
     },
     "/api/posts/{id}": {
+      "patch": {
+        "operationId": "PostController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post not found or not yours"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Posts"
+        ]
+      },
       "delete": {
         "operationId": "PostController_remove",
         "parameters": [
@@ -1147,6 +1239,117 @@
           "followingCount"
         ]
       },
+      "PostAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "userName",
+          "imageUrl"
+        ]
+      },
+      "FeedItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorDto"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageWidth": {
+            "type": "number",
+            "nullable": true,
+            "description": "Null for posts without an image or from before sizes were stored"
+          },
+          "imageHeight": {
+            "type": "number",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "editedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the text was last edited"
+          },
+          "likeCount": {
+            "type": "number",
+            "example": 3
+          },
+          "likedByMe": {
+            "type": "boolean",
+            "description": "Whether the caller liked this post"
+          },
+          "fromFollowing": {
+            "type": "boolean",
+            "description": "True for posts by people the caller followed when the feed was opened, and for their own posts"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "author",
+          "imageUrl",
+          "imageWidth",
+          "imageHeight",
+          "text",
+          "created",
+          "editedAt",
+          "likeCount",
+          "likedByMe",
+          "fromFollowing"
+        ]
+      },
+      "FeedPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Followed people and own posts first, newest first; then everyone else",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedItemDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as cursor to get the next page; it keeps the moment the feed was opened, so new posts do not shift pages"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
       "CreatePostDto": {
         "type": "object",
         "properties": {
@@ -1175,6 +1378,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorDto"
+          },
           "imageUrl": {
             "type": "string",
             "nullable": true
@@ -1195,6 +1401,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "editedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the text was last edited"
+          },
           "likeCount": {
             "type": "number",
             "example": 3
@@ -1207,11 +1419,13 @@
         "required": [
           "id",
           "ownerId",
+          "author",
           "imageUrl",
           "imageWidth",
           "imageHeight",
           "text",
           "created",
+          "editedAt",
           "likeCount",
           "likedByMe"
         ]
@@ -1234,6 +1448,18 @@
         "required": [
           "items",
           "nextCursor"
+        ]
+      },
+      "UpdatePostDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "Shipping a new release this weekend."
+          }
+        },
+        "required": [
+          "text"
         ]
       },
       "CreateChatDto": {

@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -24,14 +25,32 @@ import { CurrentUser, type AuthUser } from '@/auth/current-user.decorator';
 import { PageQueryDto } from '@/common/pagination/page-query.dto';
 
 import { CreatePostDto } from './dto/create-post.dto';
-import { PostPageDto, PostResponseDto } from './dto/post-response.dto';
+import {
+  FeedPageDto,
+  PostPageDto,
+  PostResponseDto,
+} from './dto/post-response.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
+import { FeedService } from './feed.service';
 import { PostService } from './post.service';
 
 @Controller()
 @ApiTags('Posts')
 @ApiBearerAuth()
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(
+    private readonly postService: PostService,
+    private readonly feedService: FeedService,
+  ) {}
+
+  @Get('feed')
+  @ApiOkResponse({ type: FeedPageDto })
+  findFeed(
+    @CurrentUser() user: AuthUser,
+    @Query() pageQuery: PageQueryDto,
+  ): Promise<FeedPageDto> {
+    return this.feedService.findFeed(user.id, pageQuery);
+  }
 
   @Post('posts')
   @ApiCreatedResponse({ type: PostResponseDto })
@@ -64,6 +83,17 @@ export class PostController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.postService.unlike(user.id, id);
+  }
+
+  @Patch('posts/:id')
+  @ApiOkResponse({ type: PostResponseDto })
+  @ApiNotFoundResponse({ description: 'Post not found or not yours' })
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updatePostDto: UpdatePostDto,
+  ): Promise<PostResponseDto> {
+    return this.postService.update(user.id, id, updatePostDto);
   }
 
   @Delete('posts/:id')

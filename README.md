@@ -32,7 +32,11 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
   - an image file is removed when nothing uses it anymore.
 - **Profiles:** name, bio and avatar via `PATCH /users/me`; the cached profile is dropped on every write.
 - **Follows:** idempotent `PUT` / `DELETE /users/:id/follow`; follower counts are cached with the profile, `isFollowedByMe` is computed per viewer.
-- **Feed:** cursor pagination that stays stable while new posts arrive. Likes are idempotent and report `likedByMe` per viewer.
+- **Home feed** (`GET /feed`):
+  - posts by people you follow and your own come first, then everyone else's, in one SQL query (`LATERAL` per followed author, an anti-join for the rest);
+  - the cursor keeps the moment the feed was opened, so new posts and a follow made mid-scroll don't shift or repeat pages;
+  - every post carries its author, and image sizes so the client can reserve space.
+- **Posts:** cursor pagination per profile; authors can edit the text (`editedAt`). Likes are idempotent and report `likedByMe` per viewer.
 - **Direct chats:**
   - one chat per pair, enforced by a unique key, so a double click can't create two;
   - "delete for me" hides the history only for you; the chat comes back on a new message and is removed once nobody sees it;
@@ -233,7 +237,7 @@ First deploy:
 
 - Add the Socket.IO Redis adapter and run two API replicas behind a load balancer.
 - Add notifications, read receipts and typing indicators.
-- Add a personalised feed, plus full-text search with Postgres `tsvector`.
+- Add full-text search with Postgres `tsvector`.
 - Add OpenTelemetry traces across HTTP, sockets and the database.
 
 ## Scripts

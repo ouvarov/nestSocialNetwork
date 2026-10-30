@@ -22,6 +22,7 @@ type StoredPost = {
   imageUploadId: string | null;
   text: string;
   created: Date;
+  editedAt: Date | null;
 };
 
 type StoredUpload = {
@@ -46,12 +47,16 @@ const createPostStore = () => {
     return {
       postId: post.postId,
       ownerId: post.ownerId,
+      authorUserName: post.ownerId.toUpperCase(),
+      authorImageKey: `users/${post.ownerId}/avatar.webp`,
+      authorLegacyImageUrl: null,
       imageKey: upload?.storageKey ?? null,
       legacyImageUrl: null,
       imageWidth: upload?.width ?? null,
       imageHeight: upload?.height ?? null,
       text: post.text,
       created: post.created,
+      editedAt: post.editedAt,
       createdCursor: post.created.toISOString(),
       likeCount: [...likes].filter((key) => key.startsWith(`${post.postId}:`))
         .length,
@@ -81,8 +86,16 @@ const createPostStore = () => {
         imageUploadId: imageUploadId ?? null,
         text,
         created: new Date(clock),
+        editedAt: null,
       });
       return Promise.resolve(postId);
+    },
+    updateText: (postId: string, ownerId: string, text: string) => {
+      const post = posts.get(postId);
+      if (post?.ownerId !== ownerId) return Promise.resolve(false);
+
+      posts.set(postId, { ...post, text, editedAt: new Date(clock + 500) });
+      return Promise.resolve(true);
     },
     findPost: (postId: string, viewerId: string) => {
       const post = posts.get(postId);
@@ -173,12 +186,40 @@ describe('PostService', () => {
 
     expect(post).toMatchObject({
       ownerId: ADA,
+      author: {
+        id: ADA,
+        userName: 'ADA',
+        imageUrl: `${CDN}/users/${ADA}/avatar.webp`,
+      },
       text: 'hello',
       imageUrl: null,
       imageWidth: null,
       imageHeight: null,
+      editedAt: null,
       likeCount: 0,
       likedByMe: false,
+    });
+  });
+
+  describe('update', () => {
+    it('changes the text of your own post and marks it edited', async () => {
+      const { postService } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'helo' });
+
+      const post = await postService.update(ADA, id, { text: 'hello' });
+
+      expect(post.text).toBe('hello');
+      expect(post.editedAt).toBeInstanceOf(Date);
+    });
+
+    it("answers 404 for someone else's post and keeps its text", async () => {
+      const { postService, posts } = createPostService();
+      const { id } = await postService.create(ADA, { text: 'hello' });
+
+      await expect(
+        postService.update(LINUS, id, { text: 'hijacked' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(posts.get(id)?.text).toBe('hello');
     });
   });
 
