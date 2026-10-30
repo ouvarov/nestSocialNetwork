@@ -14,7 +14,11 @@ const server = new PGLiteSocketServer({
 
 await server.start();
 process.stdout.write(
-  `In-memory Postgres on postgres://postgres@127.0.0.1:${port}/postgres\n`,
+  [
+    `In-memory Postgres on postgres://postgres@127.0.0.1:${port}/postgres`,
+    'It runs one query at a time: set DATABASE_POOL_MAX=1 for the API and run e2e with --runInBand.',
+    '',
+  ].join('\n'),
 );
 
 const stop = async () => {
