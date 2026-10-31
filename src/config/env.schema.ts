@@ -28,6 +28,7 @@ const envObjectSchema = z.object({
   PUBLIC_URL: z.url().default('http://localhost:5000'),
   CORS_ORIGIN: z.url().default('http://localhost:3001'),
   DATABASE_URL: z.url(),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
   REDIS_URL: optionalWhenEmpty(z.url()),
   RATE_LIMIT_DISABLED: flag,
   ORIGIN_SECRET: optionalWhenEmpty(secret),
