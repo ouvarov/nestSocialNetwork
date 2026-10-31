@@ -50,6 +50,13 @@
       "when": 1793357121396,
       "tag": "0006_uploads_follows",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793377083631,
+      "tag": "0007_feed",
+      "breakpoints": true
     }
   ]
 }

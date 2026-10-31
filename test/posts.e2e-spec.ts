@@ -46,11 +46,13 @@ describe('creating posts', () => {
     expect(post).toEqual({
       id: expect.any(String) as string,
       ownerId: author.id,
+      author: { id: author.id, userName: author.userName, imageUrl: null },
       imageUrl: null,
       imageWidth: null,
       imageHeight: null,
       text: 'First post',
       created: expect.any(String) as string,
+      editedAt: null,
       likeCount: 0,
       likedByMe: false,
     });

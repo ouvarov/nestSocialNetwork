@@ -14,7 +14,7 @@ describe('cursor pagination', () => {
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
   });
 
-  it.each(['not-base64-json', encodeCursor({ id: 'x' } as never)])(
+  it.each(['not-base64-json', encodeCursor({ id: 'x' })])(
     'rejects a malformed cursor %s with 400',
     (encoded) => {
       expect(() => decodeCursor(encoded)).toThrow(BadRequestException);

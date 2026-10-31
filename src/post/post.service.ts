@@ -6,18 +6,16 @@ import {
 
 import { decodeCursor, toPage } from '@/common/pagination/cursor';
 import type { PageQueryDto } from '@/common/pagination/page-query.dto';
-import {
-  PostDatabaseOrmService,
-  type PostRow,
-} from '@/database/post-database.service';
+import { PostDatabaseOrmService } from '@/database/post-database.service';
 import { getPostgresErrorCode } from '@/database/postgres-error';
 import { UploadDatabaseService } from '@/database/upload-database.service';
-import { toImageUrl } from '@/storage/image-url';
 import { StorageService } from '@/storage/storage.service';
 import { UploadCleanupService } from '@/storage/upload-cleanup.service';
 
 import type { CreatePostDto } from './dto/create-post.dto';
 import type { PostPageDto, PostResponseDto } from './dto/post-response.dto';
+import type { UpdatePostDto } from './dto/update-post.dto';
+import { toPostResponse } from './post-response';
 
 const POSTS_PAGE_SIZE = 10;
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -68,7 +66,7 @@ export class PostService {
     return toPage(
       rows,
       limit,
-      (row) => this.toPostResponse(row),
+      (row) => toPostResponse(this.storageService, row),
       (row) => ({ createdAt: row.createdCursor, id: row.postId }),
     );
   }
@@ -92,6 +90,22 @@ export class PostService {
     return this.getPost(postId, userId);
   }
 
+  async update(
+    userId: string,
+    postId: string,
+    { text }: UpdatePostDto,
+  ): Promise<PostResponseDto> {
+    const isUpdated = await this.postDatabaseService.updateText(
+      postId,
+      userId,
+      text,
+    );
+
+    if (!isUpdated) throw new NotFoundException('Post not found');
+
+    return this.getPost(postId, userId);
+  }
+
   async remove(userId: string, postId: string): Promise<void> {
     const deleted = await this.postDatabaseService.deletePost(postId, userId);
 
@@ -108,20 +122,6 @@ export class PostService {
 
     if (!post) throw new NotFoundException('Post not found');
 
-    return this.toPostResponse(post);
-  }
-
-  private toPostResponse(post: PostRow): PostResponseDto {
-    return {
-      id: post.postId,
-      ownerId: post.ownerId,
-      imageUrl: toImageUrl(this.storageService, post),
-      imageWidth: post.imageWidth,
-      imageHeight: post.imageHeight,
-      text: post.text,
-      created: post.created,
-      likeCount: post.likeCount,
-      likedByMe: post.likedByMe,
-    };
+    return toPostResponse(this.storageService, post);
   }
 }

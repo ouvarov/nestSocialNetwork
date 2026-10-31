@@ -19,9 +19,15 @@ const Posts = pgTable(
     created: timestamp('created', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    edited_at: timestamp('edited_at', { withTimezone: true }),
   },
   (table) => [
-    index('posts_owner_created_idx').on(table.owner_id, table.created),
+    index('posts_owner_created_id_idx').on(
+      table.owner_id,
+      table.created,
+      table.post_id,
+    ),
+    index('posts_created_id_idx').on(table.created, table.post_id),
     index('posts_image_upload_id_idx')
       .on(table.image_upload_id)
       .where(isNotNull(table.image_upload_id)),
