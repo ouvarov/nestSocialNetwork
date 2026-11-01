@@ -17,7 +17,10 @@ export class ChatPeerDto {
 }
 
 export class LastMessageDto {
-  @ApiProperty({ example: 'Green on the first try. Suspicious.' })
+  @ApiProperty({
+    example: 'Green on the first try. Suspicious.',
+    description: 'The first 200 characters of the message',
+  })
   content: string;
 
   @ApiProperty({
@@ -54,6 +57,7 @@ export class ChatSummaryDto {
   lastMessage: LastMessageDto | null;
 
   @ApiProperty({
+    type: 'integer',
     example: 2,
     description: 'Messages from the other person since you last read the chat',
   })

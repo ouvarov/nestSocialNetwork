@@ -51,6 +51,21 @@ it('shows the last message and counts what the other person sent', async () => {
   expect(await chatOf(bob, chatId)).toMatchObject({ unreadCount: 1 });
 });
 
+it("sends the last message time as the chat's ISO time and cuts long previews", async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  await sendMessage(app, bob, chatId, 'x'.repeat(500));
+
+  const chat = await chatOf(ada, chatId);
+
+  expect(chat?.lastMessage?.sentAt).toBe(chat?.lastMessageAt);
+  expect(chat?.lastMessage?.sentAt).toMatch(/Z$/);
+  expect(chat?.lastMessage?.content).toBe('x'.repeat(200));
+});
+
 it('resets the count on read and counts only newer messages', async () => {
   const [ada, bob] = await Promise.all([
     registerUser(app, 'Ada'),
@@ -97,6 +112,21 @@ it('hides messages from before you cleared the chat', async () => {
     lastMessage: { content: 'Fresh start' },
     unreadCount: 1,
   });
+});
+
+it('counts from the clear when it comes after the last read', async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  await markRead(ada, chatId).expect(204);
+  await sendMessage(app, bob, chatId, 'Hidden by the clear');
+  await api(app).delete(`/api/chat/${chatId}`).set(bearer(ada)).expect(204);
+
+  await sendMessage(app, bob, chatId, 'After the clear');
+
+  expect(await chatOf(ada, chatId)).toMatchObject({ unreadCount: 1 });
 });
 
 it("answers 404 when marking someone else's chat as read", async () => {

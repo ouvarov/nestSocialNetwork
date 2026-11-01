@@ -20,6 +20,8 @@ type LastMessage = {
   sentAt: Date;
 };
 
+type LastMessageRow = Omit<LastMessage, 'sentAt'> & { sentAt: string };
+
 type ChatSummary = {
   chatId: string;
   peer: ChatPeer | null;
@@ -45,12 +47,10 @@ const lastMessageAt =
     Messages.sent_at,
   );
 
-const latestMessage = sql<{
-  content: string;
-  senderId: string | null;
-  sentAt: string;
-} | null>`(
-  select json_build_object('content', latest.content, 'senderId', latest.sender_id, 'sentAt', latest.sent_at)
+const PREVIEW_LENGTH = 200;
+
+const latestMessage = sql<LastMessageRow | null>`(
+  select json_build_object('content', left(latest.content, ${PREVIEW_LENGTH}), 'senderId', latest.sender_id, 'sentAt', latest.sent_at)
   from ${Messages} latest
   where latest.chat_id = ${Chats}.chat_id
   order by latest.sent_at desc, latest.message_id desc

@@ -1545,7 +1545,8 @@
         "properties": {
           "content": {
             "type": "string",
-            "example": "Green on the first try. Suspicious."
+            "example": "Green on the first try. Suspicious.",
+            "description": "The first 200 characters of the message"
           },
           "senderId": {
             "type": "string",
@@ -1597,7 +1598,7 @@
             ]
           },
           "unreadCount": {
-            "type": "number",
+            "type": "integer",
             "example": 2,
             "description": "Messages from the other person since you last read the chat"
           }
