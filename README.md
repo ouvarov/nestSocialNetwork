@@ -41,6 +41,7 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
   - one chat per pair, enforced by a unique key, so a double click can't create two;
   - "delete for me" hides the history only for you; the chat comes back on a new message and is removed once nobody sees it;
   - history and the people list are cursor-paginated;
+  - the chat list carries the last message and an unread count; `POST /chat/:id/read` marks a chat as read;
   - a non-member gets 404, as if the chat didn't exist.
 - **Live messages** over Socket.IO: JWT handshake, sockets closed at token expiry and on logout, every event answered in its ack, validation.
 - **Rate limits** stored in Redis:

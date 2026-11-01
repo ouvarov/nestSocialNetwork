@@ -58,6 +58,8 @@ describe('creating chats', () => {
       chatId,
       peer: { id: bob.id, userName: 'Bob', imageUrl: null },
       lastMessageAt: null,
+      lastMessage: null,
+      unreadCount: 0,
     });
     expect(await chatsOf(bob)).toContainEqual(
       expect.objectContaining({

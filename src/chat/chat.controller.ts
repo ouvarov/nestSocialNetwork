@@ -81,6 +81,18 @@ export class ChatController {
     return this.chatService.findMessages(user.id, id, pageQuery);
   }
 
+  @Post(':id/read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'Marks every message in the chat as read for you',
+  })
+  markRead(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.chatService.markRead(user.id, id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse({

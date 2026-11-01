@@ -14,10 +14,18 @@ import type { StoredImage } from '@/storage/image-url';
 
 type ChatPeer = StoredImage & { id: string; userName: string };
 
+type LastMessage = {
+  content: string;
+  senderId: string | null;
+  sentAt: Date;
+};
+
 type ChatSummary = {
   chatId: string;
   peer: ChatPeer | null;
   lastMessageAt: Date | null;
+  lastMessage: LastMessage | null;
+  unreadCount: number;
 };
 
 type ChatHeader = { chatId: string; peer: ChatPeer | null };
@@ -36,6 +44,27 @@ const lastMessageAt =
   sql<Date | null>`(select max(${Messages.sent_at}) from ${Messages} where ${Messages.chat_id} = ${Chats.chat_id})`.mapWith(
     Messages.sent_at,
   );
+
+const latestMessage = sql<{
+  content: string;
+  senderId: string | null;
+  sentAt: string;
+} | null>`(
+  select json_build_object('content', latest.content, 'senderId', latest.sender_id, 'sentAt', latest.sent_at)
+  from ${Messages} latest
+  where latest.chat_id = ${Chats}.chat_id
+  order by latest.sent_at desc, latest.message_id desc
+  limit 1
+)`;
+
+const unreadCount = (userId: string) =>
+  sql<number>`(
+    select count(*)::int
+    from ${Messages} unread
+    where unread.chat_id = ${Chats}.chat_id
+      and unread.sender_id is distinct from ${userId}
+      and unread.sent_at > coalesce(greatest(${ChatMembers}.last_read_at, ${ChatMembers}.cleared_at), '-infinity'::timestamptz)
+  )`;
 
 const peerColumns = {
   id: Users.user_id,
@@ -120,7 +149,13 @@ export class ChatDatabaseService {
 
   async getChatsOfUser(userId: string): Promise<ChatSummary[]> {
     const chats = await this.db
-      .select({ chatId: Chats.chat_id, peer: peerColumns, lastMessageAt })
+      .select({
+        chatId: Chats.chat_id,
+        peer: peerColumns,
+        lastMessageAt,
+        lastMessage: latestMessage,
+        unreadCount: unreadCount(userId),
+      })
       .from(ChatMembers)
       .innerJoin(Chats, eq(Chats.chat_id, ChatMembers.chat_id))
       .leftJoin(
@@ -146,7 +181,26 @@ export class ChatDatabaseService {
         desc(Chats.chat_id),
       );
 
-    return chats.map((chat) => ({ ...chat, peer: toChatPeer(chat.peer) }));
+    return chats.map((chat) => ({
+      ...chat,
+      peer: toChatPeer(chat.peer),
+      lastMessage: chat.lastMessage && {
+        ...chat.lastMessage,
+        sentAt: new Date(chat.lastMessage.sentAt),
+      },
+    }));
+  }
+
+  async markRead(chatId: string, userId: string): Promise<boolean> {
+    const updated = await this.db
+      .update(ChatMembers)
+      .set({ last_read_at: sql`now()` })
+      .where(
+        and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
+      )
+      .returning({ chatId: ChatMembers.chat_id });
+
+    return updated.length > 0;
   }
 
   async findChatHeader(
