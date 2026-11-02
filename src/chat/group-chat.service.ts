@@ -80,7 +80,7 @@ export class GroupChatService {
       },
     );
 
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   async addMembers(
@@ -114,7 +114,7 @@ export class GroupChatService {
       },
     );
 
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   async removeMember(
@@ -139,7 +139,7 @@ export class GroupChatService {
     );
 
     this.userSocketsService.removeFromChat(targetId, chatId);
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   async setRole(
@@ -164,7 +164,7 @@ export class GroupChatService {
       },
     );
 
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   async transferOwner(
@@ -189,7 +189,7 @@ export class GroupChatService {
       },
     );
 
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   async deleteGroup(actorId: string, chatId: string): Promise<void> {
@@ -205,7 +205,7 @@ export class GroupChatService {
     );
 
     this.userSocketsService.closeChat(chatId);
-    this.userSocketsService.notifyChatsChanged(memberIds);
+    this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
   private edit<Result>(

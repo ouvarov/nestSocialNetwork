@@ -580,6 +580,20 @@ describe('over the socket', () => {
     }
   });
 
+  it('tells someone who was removed, so their open chat can close', async () => {
+    const { chatId, owner, member } = await setUpGroup();
+    const socket = await connected(member, chatId);
+
+    try {
+      const groupChanged = nextEvent(socket, 'groupChanged');
+      await removeMember(owner, chatId, member).expect(204);
+
+      await expect(groupChanged).resolves.toEqual({ chatId });
+    } finally {
+      socket.close();
+    }
+  });
+
   it('refuses a message from someone who was removed', async () => {
     const { chatId, owner, member } = await setUpGroup();
     await removeMember(owner, chatId, member).expect(204);
@@ -607,10 +621,12 @@ describe('over the socket', () => {
     const socket = await connected(member, chatId);
 
     try {
-      const changed = nextEvent(socket, 'chatsChanged');
+      const listChanged = nextEvent(socket, 'chatsChanged');
+      const groupChanged = nextEvent(socket, 'groupChanged');
       await rename(owner, chatId).expect(204);
 
-      await expect(changed).resolves.toBeUndefined();
+      await expect(listChanged).resolves.toBeUndefined();
+      await expect(groupChanged).resolves.toEqual({ chatId });
     } finally {
       socket.close();
     }

@@ -21,6 +21,11 @@ export class UserSocketsService {
     this.namespace?.to(userIds.map(userRoom)).emit('chatsChanged');
   }
 
+  notifyGroupChanged(userIds: string[], chatId: string): void {
+    this.notifyChatsChanged(userIds);
+    this.namespace?.to(userIds.map(userRoom)).emit('groupChanged', { chatId });
+  }
+
   removeFromChat(userId: string, chatId: string): void {
     this.namespace?.in(userRoom(userId)).socketsLeave(chatRoom(chatId));
   }
