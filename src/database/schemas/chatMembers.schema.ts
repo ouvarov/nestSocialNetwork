@@ -21,6 +21,7 @@ const ChatMembers = pgTable(
       .notNull()
       .defaultNow(),
     cleared_at: timestamp('cleared_at', { withTimezone: true }),
+    last_read_at: timestamp('last_read_at', { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.chat_id, table.user_id] }),

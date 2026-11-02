@@ -16,6 +16,25 @@ export class ChatPeerDto {
   imageUrl: string | null;
 }
 
+export class LastMessageDto {
+  @ApiProperty({
+    example: 'Green on the first try. Suspicious.',
+    description: 'The first 200 characters of the message',
+  })
+  content: string;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'null when the sender deleted their account',
+  })
+  senderId: string | null;
+
+  @ApiProperty()
+  sentAt: Date;
+}
+
 export class ChatSummaryDto {
   @ApiProperty({ format: 'uuid' })
   chatId: string;
@@ -29,6 +48,20 @@ export class ChatSummaryDto {
 
   @ApiProperty({ type: Date, nullable: true })
   lastMessageAt: Date | null;
+
+  @ApiProperty({
+    type: LastMessageDto,
+    nullable: true,
+    description: 'The latest message in the chat',
+  })
+  lastMessage: LastMessageDto | null;
+
+  @ApiProperty({
+    type: 'integer',
+    example: 2,
+    description: 'Messages from the other person since you last read the chat',
+  })
+  unreadCount: number;
 }
 
 export class ChatDto {

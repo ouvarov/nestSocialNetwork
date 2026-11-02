@@ -824,6 +824,37 @@
         ]
       }
     },
+    "/api/chat/{id}/read": {
+      "post": {
+        "operationId": "ChatController_markRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Marks every message in the chat as read for you"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
     "/api/chat/{id}": {
       "delete": {
         "operationId": "ChatController_delete",
@@ -1509,6 +1540,31 @@
           "imageUrl"
         ]
       },
+      "LastMessageDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "Green on the first try. Suspicious.",
+            "description": "The first 200 characters of the message"
+          },
+          "senderId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "null when the sender deleted their account"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "senderId",
+          "sentAt"
+        ]
+      },
       "ChatSummaryDto": {
         "type": "object",
         "properties": {
@@ -1530,12 +1586,29 @@
             "format": "date-time",
             "type": "string",
             "nullable": true
+          },
+          "lastMessage": {
+            "nullable": true,
+            "description": "The latest message in the chat",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LastMessageDto"
+              }
+            ]
+          },
+          "unreadCount": {
+            "type": "integer",
+            "example": 2,
+            "description": "Messages from the other person since you last read the chat"
           }
         },
         "required": [
           "chatId",
           "peer",
-          "lastMessageAt"
+          "lastMessageAt",
+          "lastMessage",
+          "unreadCount"
         ]
       },
       "ChatDto": {
