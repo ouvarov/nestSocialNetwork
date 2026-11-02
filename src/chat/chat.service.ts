@@ -18,6 +18,7 @@ import { UserService } from '@/user/user.service';
 
 import type {
   ChatDto,
+  ChatMemberDto,
   ChatMessageDto,
   ChatPeerDto,
   ChatSummaryDto,
@@ -30,9 +31,16 @@ const DIRECT_CHAT_MEMBERS = 2;
 const toChatMessage = ({
   messageId,
   senderId,
+  senderName,
   content,
   sentAt,
-}: MessageRow): ChatMessageDto => ({ messageId, senderId, content, sentAt });
+}: MessageRow): ChatMessageDto => ({
+  messageId,
+  senderId,
+  senderName,
+  content,
+  sentAt,
+});
 
 @Injectable()
 export class ChatService {
@@ -69,11 +77,28 @@ export class ChatService {
     const chat = await this.chatDatabaseService.findChatHeader(chatId, userId);
     if (!chat) throw new NotFoundException('Chat not found');
 
+    const isGroup = chat.kind === 'group';
+
     return {
       chatId: chat.chatId,
+      kind: chat.kind,
+      title: chat.title,
+      myRole: chat.myRole,
       peer: this.toPeer(chat.peer),
-      canSend: chat.peer !== null,
+      members: isGroup ? await this.findMembers(chatId) : [],
+      canSend: isGroup || chat.peer !== null,
     };
+  }
+
+  private async findMembers(chatId: string): Promise<ChatMemberDto[]> {
+    const members = await this.chatDatabaseService.findMembers(chatId);
+
+    return members.map((member) => ({
+      id: member.id,
+      userName: member.userName,
+      imageUrl: toImageUrl(this.storageService, member),
+      role: member.role,
+    }));
   }
 
   private toPeer(peer: ChatPeer | null): ChatPeerDto | null {
@@ -136,7 +161,10 @@ export class ChatService {
     if (!memberIds.includes(userId)) {
       throw new NotFoundException('Chat not found');
     }
-    if (memberIds.length < DIRECT_CHAT_MEMBERS) {
+    if (
+      memberIds.length < DIRECT_CHAT_MEMBERS &&
+      (await this.chatDatabaseService.findChatKind(chatId)) === 'direct'
+    ) {
       throw new GoneException('User deleted');
     }
 

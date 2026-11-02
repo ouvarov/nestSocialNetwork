@@ -64,6 +64,13 @@
       "when": 1793555702622,
       "tag": "0008_chat_read",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793634723026,
+      "tag": "0009_chat_groups",
+      "breakpoints": true
     }
   ]
 }

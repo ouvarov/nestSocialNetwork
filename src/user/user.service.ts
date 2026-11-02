@@ -159,10 +159,13 @@ export class UserService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new ForbiddenException('Wrong password');
 
-    const isDeleted = await this.userDatabaseService.deleteUser(userId);
-    if (!isDeleted) throw new UnauthorizedException();
+    const affectedGroups = await this.userDatabaseService.deleteUser(userId);
+    if (!affectedGroups) throw new UnauthorizedException();
 
     this.userSocketsService.disconnectUser(userId);
+    for (const { chatId, memberIds } of affectedGroups) {
+      this.userSocketsService.notifyGroupChanged(memberIds, chatId);
+    }
     await Promise.all([
       this.cacheService.delete(profileKey(userId)),
       this.storageService

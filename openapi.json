@@ -880,7 +880,328 @@
         ],
         "responses": {
           "204": {
-            "description": "Clears the history for you only; the chat is removed once nobody sees it"
+            "description": "Clears the history for you only; a direct chat is removed once nobody sees it"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      },
+      "patch": {
+        "operationId": "GroupChatController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupTitleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Renames the group"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/group": {
+      "post": {
+        "operationId": "GroupChatController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatIdDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/{id}/members": {
+      "post": {
+        "operationId": "GroupChatController_addMembers",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMembersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "New people see messages only from now on"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/{id}/members/{userId}": {
+      "delete": {
+        "operationId": "GroupChatController_removeMember",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removes someone, or leaves with your own id. An owner who leaves hands over to the oldest moderator, then the oldest member"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/{id}/members/{userId}/role": {
+      "put": {
+        "operationId": "GroupChatController_setRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Makes or unmakes a moderator"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/{id}/owner": {
+      "put": {
+        "operationId": "GroupChatController_transferOwner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferOwnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Hands the group over; you become a moderator"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
+          },
+          "404": {
+            "description": "Chat not found or not a member"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/chat/{id}/group": {
+      "delete": {
+        "operationId": "GroupChatController_deleteGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deletes the group for everyone"
+          },
+          "400": {
+            "description": "Invalid input or not a group"
+          },
+          "403": {
+            "description": "Your role does not allow this"
           },
           "404": {
             "description": "Chat not found or not a member"
@@ -1564,6 +1885,11 @@
             "nullable": true,
             "description": "null when the sender deleted their account"
           },
+          "senderName": {
+            "type": "string",
+            "nullable": true,
+            "description": "null when the sender deleted their account"
+          },
           "sentAt": {
             "format": "date-time",
             "type": "string"
@@ -1572,6 +1898,7 @@
         "required": [
           "content",
           "senderId",
+          "senderName",
           "sentAt"
         ]
       },
@@ -1582,9 +1909,25 @@
             "type": "string",
             "format": "uuid"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "group"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "The group name; null for a direct chat"
+          },
+          "memberCount": {
+            "type": "integer",
+            "example": 2
+          },
           "peer": {
             "nullable": true,
-            "description": "null when the other person deleted their account",
+            "description": "null in a group, or when the other person deleted their account",
             "type": "object",
             "allOf": [
               {
@@ -1599,7 +1942,7 @@
           },
           "lastMessage": {
             "nullable": true,
-            "description": "The latest message in the chat",
+            "description": "The latest message you can see in the chat",
             "type": "object",
             "allOf": [
               {
@@ -1610,15 +1953,49 @@
           "unreadCount": {
             "type": "integer",
             "example": 2,
-            "description": "Messages from the other person since you last read the chat"
+            "description": "Messages from others since you last read the chat"
           }
         },
         "required": [
           "chatId",
+          "kind",
+          "title",
+          "memberCount",
           "peer",
           "lastMessageAt",
           "lastMessage",
           "unreadCount"
+        ]
+      },
+      "ChatMemberDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "example": "Ada Lovelace"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "moderator",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "userName",
+          "imageUrl",
+          "role"
         ]
       },
       "ChatDto": {
@@ -1628,9 +2005,29 @@
             "type": "string",
             "format": "uuid"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "group"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "The group name; null for a direct chat"
+          },
+          "myRole": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "moderator",
+              "member"
+            ]
+          },
           "peer": {
             "nullable": true,
-            "description": "null when the other person deleted their account",
+            "description": "null in a group, or when the other person deleted their account",
             "type": "object",
             "allOf": [
               {
@@ -1638,14 +2035,25 @@
               }
             ]
           },
+          "members": {
+            "description": "Everyone in a group, oldest first; empty for a direct chat",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMemberDto"
+            }
+          },
           "canSend": {
             "type": "boolean",
-            "description": "false when the other person is gone"
+            "description": "false when the other person in a direct chat is gone; always true in a group"
           }
         },
         "required": [
           "chatId",
+          "kind",
+          "title",
+          "myRole",
           "peer",
+          "members",
           "canSend"
         ]
       },
@@ -1662,6 +2070,11 @@
             "nullable": true,
             "description": "null when the sender deleted their account"
           },
+          "senderName": {
+            "type": "string",
+            "nullable": true,
+            "description": "null when the sender deleted their account"
+          },
           "content": {
             "type": "string"
           },
@@ -1673,6 +2086,7 @@
         "required": [
           "messageId",
           "senderId",
+          "senderName",
           "content",
           "sentAt"
         ]
@@ -1707,6 +2121,84 @@
             "description": "The newest message you have seen; without it, the whole chat is read"
           }
         }
+      },
+      "CreateGroupDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "memberIds": {
+            "description": "The other people; you become the owner",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "memberIds"
+        ]
+      },
+      "GroupTitleDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "AddMembersDto": {
+        "type": "object",
+        "properties": {
+          "userIds": {
+            "description": "People already in the group are skipped",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "userIds"
+        ]
+      },
+      "SetRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "moderator",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "TransferOwnerDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "userId"
+        ]
       },
       "UploadResponseDto": {
         "type": "object",

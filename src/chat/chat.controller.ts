@@ -102,7 +102,7 @@ export class ChatController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse({
     description:
-      'Clears the history for you only; the chat is removed once nobody sees it',
+      'Clears the history for you only; a direct chat is removed once nobody sees it',
   })
   async delete(
     @CurrentUser() user: AuthUser,

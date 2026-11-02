@@ -65,7 +65,7 @@ it('keeps the messages in the chat of the other person without a sender', async 
   ).body as MessagePageDto;
 
   expect(chats.find((summary) => summary.chatId === chatId)?.peer).toBeNull();
-  expect(chat).toEqual({ chatId, peer: null, canSend: false });
+  expect(chat).toMatchObject({ chatId, peer: null, canSend: false });
   expect(
     history.items.map(({ senderId, content }) => ({ senderId, content })),
   ).toEqual([
