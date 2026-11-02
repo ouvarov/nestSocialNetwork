@@ -84,7 +84,7 @@ export class ChatSummaryDto {
   @ApiProperty({
     type: LastMessageDto,
     nullable: true,
-    description: 'The latest message in the chat',
+    description: 'The latest message you can see in the chat',
   })
   lastMessage: LastMessageDto | null;
 

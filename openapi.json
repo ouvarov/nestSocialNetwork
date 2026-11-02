@@ -1942,7 +1942,7 @@
           },
           "lastMessage": {
             "nullable": true,
-            "description": "The latest message in the chat",
+            "description": "The latest message you can see in the chat",
             "type": "object",
             "allOf": [
               {

@@ -504,6 +504,10 @@ describe('leaving', () => {
 });
 
 describe('deleting an account while the owner changes', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const handOverWhileWaitingForTheLock = (
     chatId: string,
     fromId: string,
@@ -531,10 +535,9 @@ describe('deleting an account while the owner changes', () => {
       registerUser(app, 'Carol'),
     ]);
     const chatId = await createGroup(olga, [leaving, carol]);
-    const spy = handOverWhileWaitingForTheLock(chatId, olga.id, leaving.id);
+    handOverWhileWaitingForTheLock(chatId, olga.id, leaving.id);
 
     await deleteAccount(app, leaving);
-    spy.mockRestore();
 
     const { members } = await groupOf(carol, chatId);
     expect(members.filter(({ role }) => role === 'owner')).toHaveLength(1);
@@ -549,10 +552,9 @@ describe('deleting an account while the owner changes', () => {
     ]);
     const chatId = await createGroup(leaving, [heir, carol]);
     await setRole(leaving, chatId, carol, 'moderator').expect(204);
-    const spy = handOverWhileWaitingForTheLock(chatId, leaving.id, heir.id);
+    handOverWhileWaitingForTheLock(chatId, leaving.id, heir.id);
 
     await deleteAccount(app, leaving);
-    spy.mockRestore();
 
     expect(await roleOf(carol, chatId, heir)).toBe('owner');
   });
@@ -694,6 +696,29 @@ describe('over the socket', () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       expect(received).toEqual([]);
+    } finally {
+      socket.close();
+    }
+  });
+
+  it('tells nobody when the last member of a group deletes their account', async () => {
+    const [ada, bob, stranger] = await Promise.all([
+      registerUser(app, 'Ada'),
+      registerUser(app, 'Bob'),
+      registerUser(app, 'Stranger'),
+    ]);
+    const chatId = await createGroup(ada, [bob]);
+    await removeMember(bob, chatId, bob).expect(204);
+    const socket = connectSocket(app, stranger.accessToken);
+    const events: string[] = [];
+    socket.onAny((event: string) => events.push(event));
+
+    try {
+      await nextEvent(socket, 'connect');
+      await deleteAccount(app, ada);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(events).toEqual([]);
     } finally {
       socket.close();
     }
