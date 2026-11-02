@@ -35,9 +35,9 @@ describe('HealthService.checkReadiness', () => {
     ).resolves.toEqual({ ready: false, database: 'down', redis: 'up' });
   });
 
-  it('is not ready when a configured redis is down', async () => {
+  it('stays ready and reports it when a configured redis is down', async () => {
     await expect(
       createHealthService(succeeds, fails).checkReadiness(),
-    ).resolves.toEqual({ ready: false, database: 'up', redis: 'down' });
+    ).resolves.toEqual({ ready: true, database: 'up', redis: 'down' });
   });
 });

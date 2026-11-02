@@ -191,10 +191,18 @@ export class ChatDatabaseService {
     }));
   }
 
-  async markRead(chatId: string, userId: string): Promise<boolean> {
+  async markRead(
+    chatId: string,
+    userId: string,
+    upToMessageId?: string,
+  ): Promise<boolean> {
+    const readUpTo = upToMessageId
+      ? sql`greatest(${ChatMembers.last_read_at}, (select read_up_to.sent_at from ${Messages} read_up_to where read_up_to.message_id = ${upToMessageId} and read_up_to.chat_id = ${chatId}))`
+      : sql`now()`;
+
     const updated = await this.db
       .update(ChatMembers)
-      .set({ last_read_at: sql`now()` })
+      .set({ last_read_at: readUpTo })
       .where(
         and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
       )

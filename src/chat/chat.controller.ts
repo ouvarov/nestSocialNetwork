@@ -31,6 +31,7 @@ import {
   MessagePageDto,
 } from './dto/chat-response.dto';
 import { CreateChatDto } from './dto/create-chat.dto';
+import { MarkReadDto } from './dto/mark-read.dto';
 
 @Controller('chat')
 @ApiTags('Chat')
@@ -84,13 +85,15 @@ export class ChatController {
   @Post(':id/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse({
-    description: 'Marks every message in the chat as read for you',
+    description:
+      'Marks the chat as read for you, up to the given message or entirely',
   })
   markRead(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() { upToMessageId }: MarkReadDto,
   ): Promise<void> {
-    return this.chatService.markRead(user.id, id);
+    return this.chatService.markRead(user.id, id, upToMessageId);
   }
 
   @Delete(':id')
