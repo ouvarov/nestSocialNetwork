@@ -66,6 +66,14 @@ const unreadCount = (userId: string) =>
       and unread.sent_at > coalesce(greatest(${ChatMembers}.last_read_at, ${ChatMembers}.cleared_at), '-infinity'::timestamptz)
   )`;
 
+const readUpToMessage = (chatId: string, messageId: string) =>
+  sql`greatest(${ChatMembers.last_read_at}, (
+    select read_up_to.sent_at
+    from ${Messages} read_up_to
+    where read_up_to.message_id = ${messageId}
+      and read_up_to.chat_id = ${chatId}
+  ))`;
+
 const peerColumns = {
   id: Users.user_id,
   userName: Users.user_name,
@@ -191,10 +199,18 @@ export class ChatDatabaseService {
     }));
   }
 
-  async markRead(chatId: string, userId: string): Promise<boolean> {
+  async markRead(
+    chatId: string,
+    userId: string,
+    upToMessageId?: string,
+  ): Promise<boolean> {
     const updated = await this.db
       .update(ChatMembers)
-      .set({ last_read_at: sql`now()` })
+      .set({
+        last_read_at: upToMessageId
+          ? readUpToMessage(chatId, upToMessageId)
+          : sql`now()`,
+      })
       .where(
         and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
       )

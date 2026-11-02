@@ -8,6 +8,7 @@ import {
   bearer,
   createChat,
   createTestApp,
+  deleteAccount,
   registerUser,
   sendMessage,
   type TestUser,
@@ -32,6 +33,16 @@ const chatOf = async (user: TestUser, chatId: string) => {
 
 const markRead = (user: TestUser, chatId: string) =>
   api(app).post(`/api/chat/${chatId}/read`).set(bearer(user));
+
+const newestMessageId = async (user: TestUser, chatId: string) => {
+  const page = await api(app)
+    .get(`/api/chat/${chatId}/messages`)
+    .set(bearer(user))
+    .expect(200);
+  const { items } = page.body as { items: { messageId: string }[] };
+
+  return items[0].messageId;
+};
 
 it('shows the last message and counts what the other person sent', async () => {
   const [ada, bob] = await Promise.all([
@@ -81,6 +92,80 @@ it('resets the count on read and counts only newer messages', async () => {
   expect(await chatOf(ada, chatId)).toMatchObject({
     unreadCount: 1,
     lastMessage: { content: 'Two' },
+  });
+});
+
+it('reads only up to the given message', async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  await sendMessage(app, bob, chatId, 'Seen');
+  const seenId = await newestMessageId(ada, chatId);
+  await sendMessage(app, bob, chatId, 'Not seen yet');
+
+  await markRead(ada, chatId).send({ upToMessageId: seenId }).expect(204);
+
+  expect(await chatOf(ada, chatId)).toMatchObject({ unreadCount: 1 });
+});
+
+it('does not move the last read back to an older message', async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  await sendMessage(app, bob, chatId, 'One');
+  const olderId = await newestMessageId(ada, chatId);
+  await sendMessage(app, bob, chatId, 'Two');
+  await markRead(ada, chatId).expect(204);
+
+  await markRead(ada, chatId).send({ upToMessageId: olderId }).expect(204);
+
+  expect(await chatOf(ada, chatId)).toMatchObject({ unreadCount: 0 });
+});
+
+it('ignores a message from another chat when marking as read', async () => {
+  const [ada, bob, carol] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+    registerUser(app, 'Carol'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  const otherChatId = await createChat(app, ada, carol);
+  await sendMessage(app, bob, chatId, 'Unread here');
+  await sendMessage(app, carol, otherChatId, 'Newer, elsewhere');
+  const elsewhereId = await newestMessageId(ada, otherChatId);
+
+  await markRead(ada, chatId).send({ upToMessageId: elsewhereId }).expect(204);
+
+  expect(await chatOf(ada, chatId)).toMatchObject({ unreadCount: 1 });
+});
+
+it('rejects a malformed message id when marking as read', async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+
+  await markRead(ada, chatId).send({ upToMessageId: 'nope' }).expect(400);
+});
+
+it('counts messages from a deleted sender as unread', async () => {
+  const [ada, bob] = await Promise.all([
+    registerUser(app, 'Ada'),
+    registerUser(app, 'Bob'),
+  ]);
+  const chatId = await createChat(app, ada, bob);
+  await sendMessage(app, bob, chatId, 'Goodbye');
+
+  await deleteAccount(app, bob);
+
+  expect(await chatOf(ada, chatId)).toMatchObject({
+    lastMessage: { senderId: null },
+    unreadCount: 1,
   });
 });
 

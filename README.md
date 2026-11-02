@@ -172,7 +172,7 @@ E2E tests create users with unique emails and clean up their uploads, so they ar
   ```
 
 - **Socket.IO events** (`joinChat`, `leaveChat`, `createMessage`, `newMessage`) are not part of OpenAPI. The client types them in `src/api/socket-events.ts`.
-- **Health:** `GET /api/health/live` reports that the process is up. `GET /api/health/ready` checks Postgres and Redis and returns 503 naming the one that failed.
+- **Health:** `GET /api/health/live` reports that the process is up. `GET /api/health/ready` returns 503 when Postgres is down. It also reports Redis, but a Redis failure does not fail it, because the API keeps working without Redis.
 
 ## Project structure
 

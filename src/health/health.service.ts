@@ -35,7 +35,7 @@ export class HealthService {
     ]);
 
     return {
-      ready: database === 'up' && redisStatus !== 'down',
+      ready: database === 'up',
       database,
       redis: redisStatus,
     };

@@ -837,9 +837,19 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadDto"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
-            "description": "Marks every message in the chat as read for you"
+            "description": "Marks the chat as read for you, up to the given message or entirely"
           },
           "404": {
             "description": "Chat not found or not a member"
@@ -967,7 +977,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Dependencies respond",
+            "description": "Postgres responds",
             "content": {
               "application/json": {
                 "schema": {
@@ -977,7 +987,7 @@
             }
           },
           "503": {
-            "description": "A dependency is down",
+            "description": "Postgres is down",
             "content": {
               "application/json": {
                 "schema": {
@@ -1687,6 +1697,16 @@
           "items",
           "nextCursor"
         ]
+      },
+      "MarkReadDto": {
+        "type": "object",
+        "properties": {
+          "upToMessageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The newest message you have seen; without it, the whole chat is read"
+          }
+        }
       },
       "UploadResponseDto": {
         "type": "object",

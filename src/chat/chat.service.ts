@@ -106,8 +106,16 @@ export class ChatService {
     }));
   }
 
-  async markRead(userId: string, chatId: string): Promise<void> {
-    const isMarked = await this.chatDatabaseService.markRead(chatId, userId);
+  async markRead(
+    userId: string,
+    chatId: string,
+    upToMessageId?: string,
+  ): Promise<void> {
+    const isMarked = await this.chatDatabaseService.markRead(
+      chatId,
+      userId,
+      upToMessageId,
+    );
     if (!isMarked) throw new NotFoundException('Chat not found');
   }
 
