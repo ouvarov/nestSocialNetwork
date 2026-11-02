@@ -1,12 +1,15 @@
 import {
   and,
+  asc,
   eq,
   exists,
   gt,
   inArray,
   isNull,
+  ne,
   notExists,
   or,
+  sql,
 } from 'drizzle-orm';
 
 import type { Transaction } from '@/database/drizzle';
@@ -50,8 +53,54 @@ const deleteChatsNobodySees = async (tx: Transaction, chatIds: string[]) => {
   await tx
     .delete(Chats)
     .where(
-      and(inArray(Chats.chat_id, chatIds), notExists(membersSeeingHistory)),
+      and(
+        inArray(Chats.chat_id, chatIds),
+        eq(Chats.kind, 'direct'),
+        notExists(membersSeeingHistory),
+      ),
     );
 };
 
-export { deleteChatsNobodySees, lockChats };
+const handOverOwnership = async (
+  tx: Transaction,
+  chatId: string,
+  ownerId: string,
+): Promise<boolean> => {
+  const [heir] = await tx
+    .select({ userId: ChatMembers.user_id })
+    .from(ChatMembers)
+    .where(
+      and(eq(ChatMembers.chat_id, chatId), ne(ChatMembers.user_id, ownerId)),
+    )
+    .orderBy(
+      sql`${ChatMembers.role} = 'moderator' desc`,
+      asc(ChatMembers.added_at),
+      asc(ChatMembers.user_id),
+    )
+    .limit(1);
+
+  if (!heir) {
+    await tx.delete(Chats).where(eq(Chats.chat_id, chatId));
+    return false;
+  }
+
+  await tx
+    .update(ChatMembers)
+    .set({ role: 'member' })
+    .where(
+      and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, ownerId)),
+    );
+  await tx
+    .update(ChatMembers)
+    .set({ role: 'owner' })
+    .where(
+      and(
+        eq(ChatMembers.chat_id, chatId),
+        eq(ChatMembers.user_id, heir.userId),
+      ),
+    );
+
+  return true;
+};
+
+export { deleteChatsNobodySees, handOverOwnership, lockChats };

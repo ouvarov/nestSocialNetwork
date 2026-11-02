@@ -2,7 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { desc, eq, sql } from 'drizzle-orm';
 
 import type { Cursor } from '@/common/pagination/cursor';
-import { deleteChatsNobodySees, lockChats } from '@/database/chat-cleanup';
+import {
+  deleteChatsNobodySees,
+  handOverOwnership,
+  lockChats,
+} from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
 import { Follows } from '@/database/schemas/follows.schema';
@@ -149,11 +153,15 @@ export class UserDatabaseOrmService {
   deleteUser(userId: string): Promise<boolean> {
     return this.db.transaction(async (tx) => {
       const memberships = await tx
-        .select({ chatId: ChatMembers.chat_id })
+        .select({ chatId: ChatMembers.chat_id, role: ChatMembers.role })
         .from(ChatMembers)
         .where(eq(ChatMembers.user_id, userId));
       const chatIds = memberships.map(({ chatId }) => chatId);
       await lockChats(tx, chatIds);
+
+      for (const { chatId, role } of memberships) {
+        if (role === 'owner') await handOverOwnership(tx, chatId, userId);
+      }
 
       const deleted = await tx
         .delete(Users)

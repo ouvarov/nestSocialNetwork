@@ -56,6 +56,9 @@ describe('creating chats', () => {
 
     expect(await chatsOf(ada)).toContainEqual({
       chatId,
+      kind: 'direct',
+      title: null,
+      memberCount: 2,
       peer: { id: bob.id, userName: 'Bob', imageUrl: null },
       lastMessageAt: null,
       lastMessage: null,
@@ -138,7 +141,11 @@ describe('a chat', () => {
 
     expect(response.body as ChatDto).toEqual({
       chatId,
+      kind: 'direct',
+      title: null,
+      myRole: 'member',
       peer: { id: ada.id, userName: 'Ada', imageUrl: null },
+      members: [],
       canSend: true,
     });
   });

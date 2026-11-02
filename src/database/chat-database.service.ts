@@ -1,12 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import type { Cursor } from '@/common/pagination/cursor';
 import { deleteChatsNobodySees, lockChats } from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
-import { ChatMembers } from '@/database/schemas/chatMembers.schema';
-import { Chats } from '@/database/schemas/chats.schema';
+import {
+  ChatMembers,
+  type ChatRole,
+} from '@/database/schemas/chatMembers.schema';
+import { Chats, type ChatKind } from '@/database/schemas/chats.schema';
 import { Messages } from '@/database/schemas/messages.schema';
 import { Uploads } from '@/database/schemas/uploads.schema';
 import { Users } from '@/database/schemas/users.schema';
@@ -14,9 +17,12 @@ import type { StoredImage } from '@/storage/image-url';
 
 type ChatPeer = StoredImage & { id: string; userName: string };
 
+type ChatMemberRow = ChatPeer & { role: ChatRole };
+
 type LastMessage = {
   content: string;
   senderId: string | null;
+  senderName: string | null;
   sentAt: Date;
 };
 
@@ -24,17 +30,27 @@ type LastMessageRow = Omit<LastMessage, 'sentAt'> & { sentAt: string };
 
 type ChatSummary = {
   chatId: string;
+  kind: ChatKind;
+  title: string | null;
+  memberCount: number;
   peer: ChatPeer | null;
   lastMessageAt: Date | null;
   lastMessage: LastMessage | null;
   unreadCount: number;
 };
 
-type ChatHeader = { chatId: string; peer: ChatPeer | null };
+type ChatHeader = {
+  chatId: string;
+  kind: ChatKind;
+  title: string | null;
+  myRole: ChatRole;
+  peer: ChatPeer | null;
+};
 
 type MessageRow = {
   messageId: string;
   senderId: string | null;
+  senderName: string | null;
   content: string;
   sentAt: Date;
   sentCursor: string;
@@ -50,11 +66,23 @@ const lastMessageAt =
 const PREVIEW_LENGTH = 200;
 
 const latestMessage = sql<LastMessageRow | null>`(
-  select json_build_object('content', left(latest.content, ${PREVIEW_LENGTH}), 'senderId', latest.sender_id, 'sentAt', latest.sent_at)
+  select json_build_object(
+    'content', left(latest.content, ${PREVIEW_LENGTH}),
+    'senderId', latest.sender_id,
+    'senderName', (select ${Users.user_name} from ${Users} where ${Users.user_id} = latest.sender_id),
+    'sentAt', latest.sent_at
+  )
   from ${Messages} latest
   where latest.chat_id = ${Chats}.chat_id
+    and latest.sent_at > coalesce(${ChatMembers}.cleared_at, '-infinity'::timestamptz)
   order by latest.sent_at desc, latest.message_id desc
   limit 1
+)`;
+
+const memberCount = sql<number>`(
+  select count(*)::int
+  from ${ChatMembers} everyone
+  where everyone.chat_id = ${Chats}.chat_id
 )`;
 
 const unreadCount = (userId: string) =>
@@ -119,6 +147,27 @@ export class ChatDatabaseService {
     return member !== undefined;
   }
 
+  async findChatKind(chatId: string): Promise<ChatKind | null> {
+    const [chat] = await this.db
+      .select({ kind: Chats.kind })
+      .from(Chats)
+      .where(eq(Chats.chat_id, chatId));
+
+    return chat?.kind ?? null;
+  }
+
+  async findMembers(chatId: string): Promise<ChatMemberRow[]> {
+    const members = await this.db
+      .select({ ...peerColumns, role: ChatMembers.role })
+      .from(ChatMembers)
+      .innerJoin(Users, eq(Users.user_id, ChatMembers.user_id))
+      .leftJoin(Uploads, eq(Uploads.upload_id, Users.avatar_upload_id))
+      .where(eq(ChatMembers.chat_id, chatId))
+      .orderBy(asc(ChatMembers.added_at), asc(ChatMembers.user_id));
+
+    return members;
+  }
+
   async findMemberIds(chatId: string): Promise<string[]> {
     const members = await this.db
       .select({ userId: ChatMembers.user_id })
@@ -159,8 +208,10 @@ export class ChatDatabaseService {
     const chats = await this.db
       .select({
         chatId: Chats.chat_id,
+        kind: Chats.kind,
+        title: Chats.title,
+        memberCount,
         peer: peerColumns,
-        lastMessageAt,
         lastMessage: latestMessage,
         unreadCount: unreadCount(userId),
       })
@@ -171,6 +222,7 @@ export class ChatDatabaseService {
         and(
           eq(PeerMembers.chat_id, ChatMembers.chat_id),
           ne(PeerMembers.user_id, ChatMembers.user_id),
+          eq(Chats.kind, 'direct'),
         ),
       )
       .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
@@ -179,6 +231,7 @@ export class ChatDatabaseService {
         and(
           eq(ChatMembers.user_id, userId),
           or(
+            eq(Chats.kind, 'group'),
             isNull(ChatMembers.cleared_at),
             gt(lastMessageAt, ChatMembers.cleared_at),
           ),
@@ -189,14 +242,17 @@ export class ChatDatabaseService {
         desc(Chats.chat_id),
       );
 
-    return chats.map((chat) => ({
-      ...chat,
-      peer: toChatPeer(chat.peer),
-      lastMessage: chat.lastMessage && {
-        ...chat.lastMessage,
-        sentAt: new Date(chat.lastMessage.sentAt),
-      },
-    }));
+    return chats.map((chat) => {
+      const sentAt = chat.lastMessage && new Date(chat.lastMessage.sentAt);
+
+      return {
+        ...chat,
+        peer: toChatPeer(chat.peer),
+        lastMessageAt: sentAt,
+        lastMessage: chat.lastMessage &&
+          sentAt && { ...chat.lastMessage, sentAt },
+      };
+    });
   }
 
   async markRead(
@@ -224,13 +280,21 @@ export class ChatDatabaseService {
     userId: string,
   ): Promise<ChatHeader | null> {
     const [chat] = await this.db
-      .select({ chatId: ChatMembers.chat_id, peer: peerColumns })
+      .select({
+        chatId: ChatMembers.chat_id,
+        kind: Chats.kind,
+        title: Chats.title,
+        myRole: ChatMembers.role,
+        peer: peerColumns,
+      })
       .from(ChatMembers)
+      .innerJoin(Chats, eq(Chats.chat_id, ChatMembers.chat_id))
       .leftJoin(
         PeerMembers,
         and(
           eq(PeerMembers.chat_id, ChatMembers.chat_id),
           ne(PeerMembers.user_id, ChatMembers.user_id),
+          eq(Chats.kind, 'direct'),
         ),
       )
       .leftJoin(Users, eq(Users.user_id, PeerMembers.user_id))
@@ -239,7 +303,7 @@ export class ChatDatabaseService {
         and(eq(ChatMembers.chat_id, chatId), eq(ChatMembers.user_id, userId)),
       );
 
-    return chat ? { chatId: chat.chatId, peer: toChatPeer(chat.peer) } : null;
+    return chat ? { ...chat, peer: toChatPeer(chat.peer) } : null;
   }
 
   findMessages({
@@ -261,6 +325,7 @@ export class ChatDatabaseService {
       .select({
         messageId: Messages.message_id,
         senderId: Messages.sender_id,
+        senderName: Users.user_name,
         content: Messages.content,
         sentAt: Messages.sent_at,
         sentCursor: sql<string>`${Messages.sent_at}::text`,
@@ -273,6 +338,7 @@ export class ChatDatabaseService {
           eq(ChatMembers.user_id, userId),
         ),
       )
+      .leftJoin(Users, eq(Users.user_id, Messages.sender_id))
       .where(
         and(
           eq(Messages.chat_id, chatId),
@@ -307,4 +373,4 @@ export class ChatDatabaseService {
   }
 }
 
-export type { ChatHeader, ChatPeer, ChatSummary, MessageRow };
+export type { ChatHeader, ChatMemberRow, ChatPeer, ChatSummary, MessageRow };

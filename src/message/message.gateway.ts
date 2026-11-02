@@ -22,7 +22,7 @@ import {
 } from '@/auth/socket-user';
 import { ChatService } from '@/chat/chat.service';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
-import { UserSocketsService } from '@/realtime/user-sockets.service';
+import { chatRoom, UserSocketsService } from '@/realtime/user-sockets.service';
 
 import { ChatRoomDto } from './dto/chat-room.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -31,8 +31,6 @@ import { MessageService } from './message.service';
 type SuccessAck<Data> = { ok: true; data: Data };
 
 const SECOND_MS = 1000;
-
-const chatRoom = (chatId: string) => `chat:${chatId}`;
 
 const success = <Data>(data: Data): SuccessAck<Data> => ({ ok: true, data });
 

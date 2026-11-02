@@ -1,7 +1,7 @@
 <h1 align="center">Pulse — API</h1>
 
 <p align="center">
-  The NestJS backend of Pulse, a real-time social network: profiles, image posts, likes and live chat.
+  The NestJS backend of Pulse, a real-time social network: profiles, image posts, likes and live direct and group chats.
 </p>
 
 <p align="center">
@@ -43,6 +43,10 @@ The web client lives in [ouvarov/viteSocialNetwork-](https://github.com/ouvarov/
   - history and the people list are cursor-paginated;
   - the chat list carries the last message and an unread count; `POST /chat/:id/read` marks a chat as read;
   - a non-member gets 404, as if the chat didn't exist.
+- **Group chats:**
+  - an owner, moderators and members, up to 50 people, with permissions checked under a row lock;
+  - one owner per group is enforced by a partial unique index; an owner who leaves hands over to the oldest moderator, then the oldest member;
+  - someone added later doesn't see older messages, and someone removed stops receiving messages at once.
 - **Live messages** over Socket.IO: JWT handshake, sockets closed at token expiry and on logout, every event answered in its ack, validation.
 - **Rate limits** stored in Redis:
   - 5 sign-in attempts per minute per visitor;

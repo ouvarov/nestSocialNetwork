@@ -48,6 +48,7 @@ const createChatStore = () => {
       chats.set(chatId, { pairKey, members: new Set([userId, peerId]) });
       return Promise.resolve(chatId);
     },
+    findChatKind: () => Promise.resolve('direct'),
     findChatHeader: (chatId: string, userId: string) => {
       const members = chats.get(chatId)?.members;
       if (!members?.has(userId)) return Promise.resolve(null);
@@ -55,6 +56,9 @@ const createChatStore = () => {
       const peerId = [...members].find((id) => id !== userId);
       return Promise.resolve({
         chatId,
+        kind: 'direct',
+        title: null,
+        myRole: 'member',
         peer: peerId ? peerOf(peerId) : null,
       });
     },
@@ -132,6 +136,10 @@ describe('ChatService', () => {
 
       await expect(chatService.findOne(ADA, chatId)).resolves.toEqual({
         chatId,
+        kind: 'direct',
+        title: null,
+        myRole: 'member',
+        members: [],
         peer: {
           id: LINUS,
           userName: LINUS,
@@ -148,6 +156,10 @@ describe('ChatService', () => {
 
       await expect(chatService.findOne(ADA, chatId)).resolves.toEqual({
         chatId,
+        kind: 'direct',
+        title: null,
+        myRole: 'member',
+        members: [],
         peer: null,
         canSend: false,
       });
