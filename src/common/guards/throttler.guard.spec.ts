@@ -57,7 +57,9 @@ describe('AppThrottlerGuard over WebSocket', () => {
   });
 
   it('gives the throttler a response it can set headers on', () => {
-    const { res } = guard.requestOf(wsContext({}));
+    const { res } = guard.requestOf(wsContext({})) as {
+      res: { header: (name: string, value: string) => unknown };
+    };
 
     expect(() => res.header('x-ratelimit-limit', '1')).not.toThrow();
   });

@@ -13,6 +13,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -88,6 +89,7 @@ export class ChatController {
     description:
       'Marks the chat as read for you, up to the given message or entirely',
   })
+  @ApiBody({ type: MarkReadDto, required: false })
   markRead(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,

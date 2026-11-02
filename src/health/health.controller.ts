@@ -29,10 +29,10 @@ export class HealthController {
   }
 
   @Get('ready')
-  @ApiOkResponse({ type: ReadinessDto, description: 'Dependencies respond' })
+  @ApiOkResponse({ type: ReadinessDto, description: 'Postgres responds' })
   @ApiServiceUnavailableResponse({
     type: ReadinessDto,
-    description: 'A dependency is down',
+    description: 'Postgres is down',
   })
   async ready(
     @Res({ passthrough: true }) response: Response,

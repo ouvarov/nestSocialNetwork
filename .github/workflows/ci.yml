@@ -96,7 +96,7 @@ jobs:
       - name: Wait until ready
         run: |
           for attempt in $(seq 30); do
-            if curl --silent --fail http://localhost:5000/api/health/ready; then
+            if curl --silent --fail http://localhost:5000/api/health/ready | grep --quiet '"redis":"up"'; then
               exit 0
             fi
             sleep 2
