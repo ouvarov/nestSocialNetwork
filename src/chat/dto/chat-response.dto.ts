@@ -128,7 +128,8 @@ export class ChatDto {
   members: ChatMemberDto[];
 
   @ApiProperty({
-    description: 'false when the other person in a direct chat is gone',
+    description:
+      'false when the other person in a direct chat is gone; always true in a group',
   })
   canSend: boolean;
 }

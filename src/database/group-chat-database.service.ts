@@ -71,7 +71,7 @@ class GroupEditor {
       );
   }
 
-  handOverOwnership(ownerId: string): Promise<boolean> {
+  handOverOwnership(ownerId: string): Promise<void> {
     return handOverOwnership(this.tx, this.chatId, ownerId);
   }
 

@@ -18,12 +18,12 @@ import {
 
 const MAX_TITLE_LENGTH = 100;
 
-const trimmed = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
+const cleanTitle = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.replaceAll('\0', '').trim() : value;
 
 class GroupTitleDto {
   @ApiProperty({ minLength: 1, maxLength: MAX_TITLE_LENGTH })
-  @Transform(trimmed)
+  @Transform(cleanTitle)
   @IsString()
   @Length(1, MAX_TITLE_LENGTH)
   title: string;

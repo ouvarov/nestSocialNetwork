@@ -3,7 +3,7 @@ import type { Namespace, Socket } from 'socket.io';
 
 const userRoom = (userId: string) => `user:${userId}`;
 
-const chatRoom = (chatId: string) => `chat:${chatId}`;
+const chatRoom = (chatId: string) => `chat:${chatId.toLowerCase()}`;
 
 @Injectable()
 export class UserSocketsService {
@@ -23,15 +23,13 @@ export class UserSocketsService {
 
   notifyGroupChanged(userIds: string[], chatId: string): void {
     this.notifyChatsChanged(userIds);
-    this.namespace?.to(userIds.map(userRoom)).emit('groupChanged', { chatId });
+    this.namespace
+      ?.to(userIds.map(userRoom))
+      .emit('groupChanged', { chatId: chatId.toLowerCase() });
   }
 
   removeFromChat(userId: string, chatId: string): void {
     this.namespace?.in(userRoom(userId)).socketsLeave(chatRoom(chatId));
-  }
-
-  closeChat(chatId: string): void {
-    this.namespace?.in(chatRoom(chatId)).socketsLeave(chatRoom(chatId));
   }
 
   disconnectUser(userId: string): void {

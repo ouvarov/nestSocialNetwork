@@ -1,5 +1,5 @@
 {
-  "id": "6643b236-8e0f-46e3-8be1-29b45217f52b",
+  "id": "ff3caa13-b900-4ea9-a53b-705a62792ed3",
   "prevId": "6fd41f06-e2e2-464b-8beb-3a9c0c27d299",
   "version": "7",
   "dialect": "postgresql",
@@ -194,7 +194,7 @@
         },
         "chats_shape_check": {
           "name": "chats_shape_check",
-          "value": "(\"chats\".\"kind\" = 'direct' and \"chats\".\"title\" is null) or (\"chats\".\"kind\" = 'group' and \"chats\".\"pair_key\" is null and char_length(\"chats\".\"title\") between 1 and 100)"
+          "value": "(\"chats\".\"kind\" = 'direct' and \"chats\".\"title\" is null) or (\"chats\".\"kind\" = 'group' and \"chats\".\"pair_key\" is null and \"chats\".\"title\" is not null and char_length(\"chats\".\"title\") between 1 and 100)"
         },
         "chats_direct_pair_key_check": {
           "name": "chats_direct_pair_key_check",

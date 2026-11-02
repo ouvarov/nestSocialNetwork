@@ -84,8 +84,17 @@ export class MessageGateway implements OnGatewayInit, OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() { chatId }: ChatRoomDto,
   ) {
-    await this.chatService.assertMember(getSocketUser(client).id, chatId);
+    const { id: userId } = getSocketUser(client);
+
+    await this.chatService.assertMember(userId, chatId);
     await client.join(chatRoom(chatId));
+
+    try {
+      await this.chatService.assertMember(userId, chatId);
+    } catch (error) {
+      await client.leave(chatRoom(chatId));
+      throw error;
+    }
 
     return success({ chatId });
   }

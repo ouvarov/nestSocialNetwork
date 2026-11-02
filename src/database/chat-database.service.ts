@@ -238,7 +238,9 @@ export class ChatDatabaseService {
         ),
       )
       .orderBy(
-        desc(sql`coalesce(${lastMessageAt}, ${Chats.created_at})`),
+        desc(
+          sql`greatest(coalesce(${lastMessageAt}, ${Chats.created_at}), ${ChatMembers.cleared_at})`,
+        ),
         desc(Chats.chat_id),
       );
 

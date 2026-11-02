@@ -880,7 +880,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Clears the history for you only; the chat is removed once nobody sees it"
+            "description": "Clears the history for you only; a direct chat is removed once nobody sees it"
           },
           "404": {
             "description": "Chat not found or not a member"
@@ -2044,7 +2044,7 @@
           },
           "canSend": {
             "type": "boolean",
-            "description": "false when the other person in a direct chat is gone"
+            "description": "false when the other person in a direct chat is gone; always true in a group"
           }
         },
         "required": [

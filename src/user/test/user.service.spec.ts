@@ -109,7 +109,7 @@ const createUserService = (
     deleteUser: (id: string) => {
       deletedUserIds.push(id);
       profiles.delete(id);
-      return Promise.resolve(true);
+      return Promise.resolve([]);
     },
   } as unknown as UserDatabaseOrmService;
   const followDatabase = {

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Cursor } from '@/common/pagination/cursor';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/database/chat-cleanup';
 import { DRIZZLE, type Database } from '@/database/drizzle';
 import { ChatMembers } from '@/database/schemas/chatMembers.schema';
+import { Chats } from '@/database/schemas/chats.schema';
 import { Follows } from '@/database/schemas/follows.schema';
 import { Uploads } from '@/database/schemas/uploads.schema';
 import { Users, type User } from '@/database/schemas/users.schema';
@@ -54,6 +55,8 @@ const followersCount = sql<number>`(select count(*)::int from ${Follows} followe
 const followingCount = sql<number>`(select count(*)::int from ${Follows} followee where followee.follower_id = ${Users}.user_id)`;
 const isFollowedBy = (viewerId: string) =>
   sql<boolean>`exists(select 1 from ${Follows} viewer_follow where viewer_follow.follower_id = ${viewerId} and viewer_follow.followee_id = ${Users}.user_id)`;
+
+type AffectedGroup = { chatId: string; memberIds: string[] };
 
 @Injectable()
 export class UserDatabaseOrmService {
@@ -150,14 +153,24 @@ export class UserDatabaseOrmService {
     });
   }
 
-  deleteUser(userId: string): Promise<boolean> {
+  deleteUser(userId: string): Promise<AffectedGroup[] | null> {
     return this.db.transaction(async (tx) => {
-      const memberships = await tx
-        .select({ chatId: ChatMembers.chat_id, role: ChatMembers.role })
+      const chatsToLock = await tx
+        .select({ chatId: ChatMembers.chat_id })
         .from(ChatMembers)
         .where(eq(ChatMembers.user_id, userId));
-      const chatIds = memberships.map(({ chatId }) => chatId);
+      const chatIds = chatsToLock.map(({ chatId }) => chatId);
       await lockChats(tx, chatIds);
+
+      const memberships = await tx
+        .select({
+          chatId: ChatMembers.chat_id,
+          role: ChatMembers.role,
+          kind: Chats.kind,
+        })
+        .from(ChatMembers)
+        .innerJoin(Chats, eq(Chats.chat_id, ChatMembers.chat_id))
+        .where(eq(ChatMembers.user_id, userId));
 
       for (const { chatId, role } of memberships) {
         if (role === 'owner') await handOverOwnership(tx, chatId, userId);
@@ -168,12 +181,34 @@ export class UserDatabaseOrmService {
         .where(eq(Users.user_id, userId))
         .returning({ id: Users.user_id });
 
-      if (deleted.length === 0) return false;
+      if (deleted.length === 0) return null;
 
       await deleteChatsNobodySees(tx, chatIds);
-      return true;
+
+      const groupIds = memberships
+        .filter(({ kind }) => kind === 'group')
+        .map(({ chatId }) => chatId);
+      if (groupIds.length === 0) return [];
+
+      const remaining = await tx
+        .select({ chatId: ChatMembers.chat_id, userId: ChatMembers.user_id })
+        .from(ChatMembers)
+        .where(inArray(ChatMembers.chat_id, groupIds));
+
+      return groupIds.map((chatId) => ({
+        chatId,
+        memberIds: remaining
+          .filter((member) => member.chatId === chatId)
+          .map((member) => member.userId),
+      }));
     });
   }
 }
 
-export type { PersonRow, ProfilePatch, PublicProfile, PublicUser };
+export type {
+  AffectedGroup,
+  PersonRow,
+  ProfilePatch,
+  PublicProfile,
+  PublicUser,
+};

@@ -65,7 +65,7 @@ const handOverOwnership = async (
   tx: Transaction,
   chatId: string,
   ownerId: string,
-): Promise<boolean> => {
+): Promise<void> => {
   const [heir] = await tx
     .select({ userId: ChatMembers.user_id })
     .from(ChatMembers)
@@ -81,7 +81,7 @@ const handOverOwnership = async (
 
   if (!heir) {
     await tx.delete(Chats).where(eq(Chats.chat_id, chatId));
-    return false;
+    return;
   }
 
   await tx
@@ -99,8 +99,6 @@ const handOverOwnership = async (
         eq(ChatMembers.user_id, heir.userId),
       ),
     );
-
-  return true;
 };
 
 export { deleteChatsNobodySees, handOverOwnership, lockChats };

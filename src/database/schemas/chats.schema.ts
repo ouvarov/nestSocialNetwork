@@ -27,7 +27,7 @@ const Chats = pgTable(
     check('chats_kind_check', sql`${table.kind} in ('direct', 'group')`),
     check(
       'chats_shape_check',
-      sql`(${table.kind} = 'direct' and ${table.title} is null) or (${table.kind} = 'group' and ${table.pair_key} is null and char_length(${table.title}) between 1 and 100)`,
+      sql`(${table.kind} = 'direct' and ${table.title} is null) or (${table.kind} = 'group' and ${table.pair_key} is null and ${table.title} is not null and char_length(${table.title}) between 1 and 100)`,
     ),
     check(
       'chats_direct_pair_key_check',

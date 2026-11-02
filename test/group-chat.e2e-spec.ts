@@ -1,4 +1,5 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { Socket } from 'socket.io-client';
 
@@ -8,6 +9,7 @@ import type {
   ChatSummaryDto,
   MessagePageDto,
 } from '@/chat/dto/chat-response.dto';
+import * as chatCleanup from '@/database/chat-cleanup';
 
 import {
   api,
@@ -199,6 +201,7 @@ describe('creating a group', () => {
         .send({ title, memberIds: [bob.id] });
 
     await create('   ').expect(400);
+    await create('\u0000').expect(400);
     await create('x'.repeat(101)).expect(400);
 
     const response = await create('  Spaced  ').expect(201);
@@ -500,6 +503,61 @@ describe('leaving', () => {
   });
 });
 
+describe('deleting an account while the owner changes', () => {
+  const handOverWhileWaitingForTheLock = (
+    chatId: string,
+    fromId: string,
+    toId: string,
+  ) => {
+    const lockChats = chatCleanup.lockChats;
+
+    return jest
+      .spyOn(chatCleanup, 'lockChats')
+      .mockImplementationOnce(async (tx, chatIds) => {
+        await tx.execute(
+          sql`update chat_members set role = 'moderator' where chat_id = ${chatId} and user_id = ${fromId}`,
+        );
+        await tx.execute(
+          sql`update chat_members set role = 'owner' where chat_id = ${chatId} and user_id = ${toId}`,
+        );
+        await lockChats(tx, chatIds);
+      });
+  };
+
+  it('keeps an owner when the leaving member has just become it', async () => {
+    const [olga, leaving, carol] = await Promise.all([
+      registerUser(app, 'Olga'),
+      registerUser(app, 'Leaving'),
+      registerUser(app, 'Carol'),
+    ]);
+    const chatId = await createGroup(olga, [leaving, carol]);
+    const spy = handOverWhileWaitingForTheLock(chatId, olga.id, leaving.id);
+
+    await deleteAccount(app, leaving);
+    spy.mockRestore();
+
+    const { members } = await groupOf(carol, chatId);
+    expect(members.filter(({ role }) => role === 'owner')).toHaveLength(1);
+    expect(members.some(({ id }) => id === leaving.id)).toBe(false);
+  });
+
+  it('does not hand over a group the leaving owner has just given away', async () => {
+    const [leaving, heir, carol] = await Promise.all([
+      registerUser(app, 'Leaving'),
+      registerUser(app, 'Heir'),
+      registerUser(app, 'Carol'),
+    ]);
+    const chatId = await createGroup(leaving, [heir, carol]);
+    await setRole(leaving, chatId, carol, 'moderator').expect(204);
+    const spy = handOverWhileWaitingForTheLock(chatId, leaving.id, heir.id);
+
+    await deleteAccount(app, leaving);
+    spy.mockRestore();
+
+    expect(await roleOf(carol, chatId, heir)).toBe('owner');
+  });
+});
+
 describe('history for someone new', () => {
   it('shows only messages from after they joined, with no old preview', async () => {
     const [ada, bob, carol] = await Promise.all([
@@ -528,6 +586,31 @@ describe('history for someone new', () => {
     expect(await historyOf(carol, chatId)).toMatchObject([
       { content: 'Welcome Carol' },
     ]);
+  });
+});
+
+describe('the order of the list', () => {
+  it('puts a group you just joined above older chats', async () => {
+    const [ada, bob, carol, dan] = await Promise.all([
+      registerUser(app, 'Ada'),
+      registerUser(app, 'Bob'),
+      registerUser(app, 'Carol'),
+      registerUser(app, 'Dan'),
+    ]);
+    const chatId = await createGroup(ada, [bob]);
+    await sendMessage(app, ada, chatId, 'Before Carol');
+    const directId = await createChat(app, carol, dan);
+    await sendMessage(app, dan, directId, 'Newer than the group message');
+
+    await addMembers(ada, chatId, [carol]).expect(204);
+
+    const response = await api(app)
+      .get('/api/chat')
+      .set(bearer(carol))
+      .expect(200);
+    expect(
+      (response.body as ChatSummaryDto[]).map((chat) => chat.chatId),
+    ).toEqual([chatId, directId]);
   });
 });
 
@@ -587,6 +670,47 @@ describe('over the socket', () => {
     try {
       const groupChanged = nextEvent(socket, 'groupChanged');
       await removeMember(owner, chatId, member).expect(204);
+
+      await expect(groupChanged).resolves.toEqual({ chatId });
+    } finally {
+      socket.close();
+    }
+  });
+
+  it('stops delivering when the chat id in the request was upper-case', async () => {
+    const { chatId, owner, member } = await setUpGroup();
+    const socket = await connected(member, chatId);
+    const received: string[] = [];
+    socket.on('newMessage', ({ content }: { content: string }) => {
+      received.push(content);
+    });
+
+    try {
+      await api(app)
+        .delete(`/api/chat/${chatId.toUpperCase()}/members/${member.id}`)
+        .set(bearer(member))
+        .expect(204);
+      await sendMessage(app, owner, chatId, 'Secret after leaving');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(received).toEqual([]);
+    } finally {
+      socket.close();
+    }
+  });
+
+  it('tells the others when a member deletes their account', async () => {
+    const [ada, bob, carol] = await Promise.all([
+      registerUser(app, 'Ada'),
+      registerUser(app, 'Bob'),
+      registerUser(app, 'Carol'),
+    ]);
+    const chatId = await createGroup(ada, [bob, carol]);
+    const socket = await connected(bob, chatId);
+
+    try {
+      const groupChanged = nextEvent(socket, 'groupChanged');
+      await deleteAccount(app, ada);
 
       await expect(groupChanged).resolves.toEqual({ chatId });
     } finally {

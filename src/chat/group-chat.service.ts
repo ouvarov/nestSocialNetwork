@@ -27,7 +27,7 @@ type GroupEdit = {
   editor: GroupEditor;
 };
 
-const normalized = (ids: string[]) => [
+const toUniqueLowerCase = (ids: string[]) => [
   ...new Set(ids.map((id) => id.toLowerCase())),
 ];
 
@@ -53,7 +53,7 @@ export class GroupChatService {
     title: string,
     memberIds: string[],
   ): Promise<string> {
-    const others = normalized(memberIds);
+    const others = toUniqueLowerCase(memberIds);
 
     if (others.includes(ownerId)) {
       throw new BadRequestException('You are in the group already');
@@ -95,7 +95,9 @@ export class GroupChatService {
         if (!canManageGroup(actor.role)) throw new ForbiddenException();
 
         const present = memberIdsOf(group);
-        const added = normalized(userIds).filter((id) => !present.includes(id));
+        const added = toUniqueLowerCase(userIds).filter(
+          (id) => !present.includes(id),
+        );
 
         if (present.length + added.length > MAX_GROUP_MEMBERS) {
           throw new BadRequestException(
@@ -204,7 +206,6 @@ export class GroupChatService {
       },
     );
 
-    this.userSocketsService.closeChat(chatId);
     this.userSocketsService.notifyGroupChanged(memberIds, chatId);
   }
 
